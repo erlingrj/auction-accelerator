@@ -1,0 +1,3 @@
+[submodule "fpga-tidbits"]
+	path = fpga-tidbits
+	url = git@github.com:erlingrj/fpga-tidbits.git
