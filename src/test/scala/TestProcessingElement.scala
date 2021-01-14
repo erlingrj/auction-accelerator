@@ -7,8 +7,8 @@ import chisel3._
 class TestProcessingElement extends FlatSpec with ChiselScalatestTester with Matchers {
 
   object AuctionTestParams extends AuctionParams {
-    val nProcessingElements = 4
-    val datSz = 32
+    val nPEs = 4
+    val bitWidth = 32
   }
 
   behavior of "ProcessingElement"
@@ -127,8 +127,8 @@ class TestProcessingElement extends FlatSpec with ChiselScalatestTester with Mat
 class TestPEsToSearchTask extends FlatSpec with ChiselScalatestTester with Matchers {
 
   object AuctionTestParams extends AuctionParams {
-    val nProcessingElements = 4
-    val datSz = 32
+    val nPEs = 4
+    val bitWidth = 32
   }
   behavior of "PEsToSearchTask"
 

@@ -7,8 +7,10 @@ import fpgatidbits.dma._
 import fpgatidbits.streams._
 
 trait AuctionParams {
-  def nProcessingElements : Int
-  def datSz: Int
+  def nPEs : Int
+  def bitWidth: Int
+  def maxProblemSize: Int
+  def memWidth: Int
 }
 
 // read and sum a contiguous stream of 32-bit uints from main memory
@@ -16,8 +18,10 @@ class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
   val numMemPorts = 1
 
   object ap extends AuctionParams {
-    val nProcessingElements = 4
-    val datSz = 16
+    val nPEs = 4
+    val bitWidth = 16
+    val maxProblemSize = 8
+    val memWidth = 16
   }
   val io = IO(new GenericAcceleratorIF(numMemPorts, p) {
     val start = Input(Bool())
@@ -32,7 +36,7 @@ class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
   plugMemWritePort(0)
 
   val rdP = new StreamReaderParams(
-    streamWidth = 16, fifoElems = 8, mem = p.toMemReqParams(),
+    streamWidth = ap.memWidth, fifoElems = 8, mem = p.toMemReqParams(),
     maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = true
   )
 
@@ -42,7 +46,7 @@ class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
   val auctionController = Module(new AuctionController(ap))
   val dataDistributor = Module(new DataDistributor(ap))
   val searchTask = Module(new SearchTask(ap))
-  val pe = for (i <- 0 until ap.nProcessingElements) yield {
+  val pe = for (i <- 0 until ap.nPEs) yield {
     Module(new ProcessingElement(ap))
   }
   val peDistributor = Module(new PEsToSearchTask(ap))

@@ -8,8 +8,8 @@ import chisel3.experimental.BundleLiterals._
 class TestAuctionController extends FlatSpec with ChiselScalatestTester with Matchers {
 
   object AuctionTestParams extends AuctionParams {
-    val nProcessingElements = 4
-    val datSz = 32
+    val nPEs = 4
+    val bitWidth = 32
   }
 
 

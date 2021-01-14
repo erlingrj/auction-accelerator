@@ -10,8 +10,8 @@ import fpgatidbits.PlatformWrapper.GenericAccelImplicits._
 class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
 
   object Ap extends AuctionParams {
-    val nProcessingElements = 4
-    val datSz = 32
+    val nPEs = 4
+    val bitWidth = 32
   }
 
   behavior of "AuctionAlgo"
