@@ -11,6 +11,8 @@ trait AuctionParams {
   def bitWidth: Int
   def maxProblemSize: Int
   def memWidth: Int
+
+  def agentWidth: Int = log2Ceil(maxProblemSize)
 }
 
 // read and sum a contiguous stream of 32-bit uints from main memory
