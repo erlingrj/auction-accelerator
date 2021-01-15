@@ -16,7 +16,7 @@ class SearchTaskParIO(ap: AuctionParams) extends Bundle {
   val resultOut = Decoupled(new SearchTaskResult(ap))
 
   def driveDefaults(): Unit = {
-    benefitIn.map(_.ready):= false.B
+    benefitIn.map(_.ready:= false.B)
     resultOut.valid := false.B
     resultOut.bits.winner := 0.U
     resultOut.bits.bid := 0.U
@@ -71,7 +71,7 @@ class SearchTaskPar(ap: AuctionParams) extends MultiIOModule {
       io.resultOut.bits := DontCare
 
       // When we receive any data
-      when(io.benefitIn.reduce(_.fire() || _.fire())) {
+      when(io.benefitIn.map(_.fire()).reduce((l,r) => l || r)) {
         for (i <- 0 until ap.nPEs) {
           when(io.benefitIn(i).fire()) {
             compRegs(0)(i) := io.benefitIn(i).bits
@@ -117,11 +117,11 @@ class SearchTaskPar(ap: AuctionParams) extends MultiIOModule {
 
 
 class SearchTaskIO(ap: AuctionParams) extends Bundle {
-  val benefitIn = Vec(ap.nPEs, Flipped(Decoupled(UInt(ap.bitWidth.W))))
+  val benefitIn = Flipped(Decoupled(UInt(ap.bitWidth.W)))
   val resultOut = Decoupled(new SearchTaskResult(ap))
 
   def driveDefaults(): Unit = {
-    benefitIn.map(_.ready):= false.B
+    benefitIn.ready:= false.B
     resultOut.valid := false.B
     resultOut.bits.winner := 0.U
     resultOut.bits.bid := 0.U

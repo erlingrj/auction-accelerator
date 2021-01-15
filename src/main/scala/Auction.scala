@@ -23,6 +23,7 @@ class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
     val maxProblemSize = 8
     val memWidth = 16
   }
+
   val io = IO(new GenericAcceleratorIF(numMemPorts, p) {
     val start = Input(Bool())
     val finished = Output(Bool())
@@ -34,7 +35,6 @@ class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
   })
   io.signature := makeDefaultSignature()
   plugMemWritePort(0)
-
   val rdP = new StreamReaderParams(
     streamWidth = ap.memWidth, fifoElems = 8, mem = p.toMemReqParams(),
     maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = true

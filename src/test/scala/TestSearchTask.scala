@@ -7,9 +7,12 @@ import chisel3.experimental.BundleLiterals._
 
 class TestSearchTask extends FlatSpec with ChiselScalatestTester with Matchers {
 
+
   object AuctionTestParams extends AuctionParams {
     val nPEs = 4
     val bitWidth = 32
+    val memWidth = 32
+    val maxProblemSize = 8
   }
 
   behavior of "SearchTask"

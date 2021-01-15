@@ -5,11 +5,13 @@ import chiseltest._
 import chisel3._
 
 class TestDataDistributor extends FlatSpec with ChiselScalatestTester with Matchers {
+
   object AuctionTestParams extends AuctionParams {
     val nPEs = 4
     val bitWidth = 32
+    val memWidth = 32
+    val maxProblemSize = 8
   }
-
   behavior of "DataDistributor"
   it should "Initialize read/valid interfaces correctly" in {
     test(new DataDistributor(AuctionTestParams)) { c =>
