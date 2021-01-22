@@ -8,7 +8,7 @@ import chisel3.util._
 // TODO: Support reset?
 class PEsToSearchTask(ap: AuctionParams) extends MultiIOModule {
   val peIn = IO(Vec(ap.nPEs, Flipped(Decoupled(UInt(ap.bitWidth.W)))))
-  val searchOut = IO(Decoupled(UInt(ap.bitWidth.W)))
+  val searchOut = IO(Decoupled(new PEResult(ap)))
 
   // Drive defaults
   peIn.map(_.ready := false.B)

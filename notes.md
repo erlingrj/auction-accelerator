@@ -11,8 +11,17 @@ The first is a parallell processing parallell Search the second is sequential an
 
 
 
-## Log
 
+## Log
+### January 18 SearchTask
+- We need to consider cases when nPEs are less then problemsize 
+maybe currently forget about optimizing it? 
+
+1. Build a tree of comps + lastWinner
+2. Add another stage where winner compares with lastWInner 
+and maybe updates it
+3. Add a tlast signal to the interface such that we now when to pipe out the results
+instead of just updating the lastWinner variable.
 
 ### January 12
 - Move everything to a own repo
