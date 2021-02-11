@@ -4,6 +4,8 @@ import org.scalatest._
 import chiseltest._
 import chisel3._
 import chisel3.experimental.BundleLiterals._
+import fpgatidbits.dma._
+
 
 class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matchers {
 
@@ -25,15 +27,9 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
     }
 
     // enqueue the round
-    fork {
-      c.io.tLast.poke(tLast.B)
-      c.clock.step()
-      c.io.tLast.poke(false.B)
-    }.fork {
-      for (i <- 0 until ids.length) {
-        c.io.benefitIn(i).enqueue(chiselTypeOf(c.io.benefitIn(i)).bits.Lit(_.id -> ids(i).U, _.benefit -> benefits(i).U))
-      }
-    }.join()
+    (0 until ids.length).map((i) => fork {
+      c.io.benefitIn(i).enqueueNow(chiselTypeOf(c.io.benefitIn(i)).bits.Lit(_.id -> ids(i).U, _.benefit -> benefits(i).U, _.last -> tLast.B))
+    }).map(_.join())
   }
 
   behavior of "SearchTaskPar"
@@ -49,17 +45,13 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
-        c.io.tLast.poke(true.B)
-        c.clock.step()
-        c.io.tLast.poke(false.B)
+        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 1.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 1.U))
+        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 1.U, _.benefit -> 2.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 1.U, _.benefit -> 2.U))
+        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 2.U, _.benefit -> 100.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 2.U, _.benefit -> 100.U))
-      }.fork {
-        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 3.U, _.benefit -> 99.U))
+        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 3.U, _.benefit -> 99.U, _.last->true.B))
       }.fork {
         c.io.resultOut.expectDequeue(
           chiselTypeOf(c.io.resultOut)
@@ -74,17 +66,13 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
-        c.io.tLast.poke(true.B)
-        c.clock.step()
-        c.io.tLast.poke(false.B)
+        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 5.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 5.U))
+        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 1.U, _.benefit -> 10.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 1.U, _.benefit -> 10.U))
+        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 2.U, _.benefit -> 10.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 2.U, _.benefit -> 10.U))
-      }.fork {
-        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 3.U, _.benefit -> 0.U))
+        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 3.U, _.benefit -> 0.U, _.last->true.B))
       }.fork {
         c.io.resultOut.expectDequeue(
           chiselTypeOf(c.io.resultOut)
@@ -100,17 +88,13 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
-        c.io.tLast.poke(false.B)
-        c.clock.step()
-        c.io.tLast.poke(false.B)
+        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 4.U, _.last->false.B))
       }.fork {
-        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 4.U))
+        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 1.U, _.benefit -> 10.U, _.last->false.B))
       }.fork {
-        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 1.U, _.benefit -> 10.U))
+        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 2.U, _.benefit -> 7.U, _.last->false.B))
       }.fork {
-        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 2.U, _.benefit -> 7.U))
-      }.fork {
-        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 3.U, _.benefit -> 7.U))
+        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 3.U, _.benefit -> 7.U, _.last->false.B))
       }.fork {
         var ready = false
         while (ready == false) {
@@ -122,17 +106,13 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
       // Round 2
 
       fork {
-        c.io.tLast.poke(true.B)
-        c.clock.step()
-        c.io.tLast.poke(false.B)
+        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 4.U, _.benefit -> 0.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 4.U, _.benefit -> 0.U))
+        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 5.U, _.benefit -> 8.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 5.U, _.benefit -> 8.U))
+        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 6.U, _.benefit -> 20.U, _.last->true.B))
       }.fork {
-        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 6.U, _.benefit -> 20.U))
-      }.fork {
-        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 7.U, _.benefit -> 9.U))
+        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 7.U, _.benefit -> 9.U, _.last->true.B))
       }.fork {
         c.io.resultOut.expectDequeue(
           chiselTypeOf(c.io.resultOut)

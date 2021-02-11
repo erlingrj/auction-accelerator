@@ -11,13 +11,13 @@ class SearchTaskResultPar(private val ap: AuctionParams) extends Bundle {
 class PEResult(private val ap: AuctionParams) extends Bundle {
   val benefit = UInt(ap.bitWidth.W)
   val id = UInt(ap.agentWidth.W)
+  val last = Bool()
 }
 
 
 class SearchTaskParIO(ap: AuctionParams) extends Bundle {
   val benefitIn = Vec(ap.nPEs, Flipped(Decoupled(new PEResult(ap))))
   val resultOut = Decoupled(new SearchTaskResultPar(ap))
-  val tLast= Input(Bool())
 
   def driveDefaults(): Unit = {
     benefitIn.map(_.ready:= false.B)
@@ -116,7 +116,7 @@ class SearchTaskPar(ap: AuctionParams) extends MultiIOModule {
 
       // When we receive any data
       when(io.benefitIn.map(_.fire()).reduce((l,r) => l || r)) {
-        regIsLast(0) := io.tLast
+        regIsLast(0) := io.benefitIn(0).bits.last
         for (i <- 0 until ap.nPEs) {
           compRegs(0)(i).id := io.benefitIn(i).bits.id
           compRegs(0)(i).runningBid := ~0.U(ap.bitWidth.W) // Set to MAX value

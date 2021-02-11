@@ -13,6 +13,41 @@ The first is a parallell processing parallell Search the second is sequential an
 
 
 ## Log
+
+### Feb 9: More dataflow
+- meeting with milica
+-> Do software simulations to see how a "fuzzy" approach would do
+-> If not we NEED to stall between data MUX and the PEs to get the correct prices
+
+### Feb 3: Dataflow
+- Proposal here: 
+1. When start goes high we initialzie the qUnassigned with all the agents. 
+2. Memory controller has the dequeue side of that queue
+3. Memory controller dequeues and the enqueues them into the qRequested
+4. AuctionController has the dequeue of qRequested and also the enqueue of qUnassigned
+5. This way we get a beautifully decoupled arch
+
+### Feb 2: Memory controller seems to work
+- Using Verilator backend solved the timing issues of Chiseltester
+- Moving towards a streaming architecture rather than a central controller architecture.
+- The controller still passes the prices to the PEs and maintains the free and assigned vec's.
+- Probably wanna assign one BRAM per AA and have a small part of it be the result.
+- Q: What happens if a price isnt updated correctly? A: It still works
+
+### Jan 27: MemoryController getting there
+- Made a simpler Memory Controller that can access the main memory and mask the result and pass to DD
+- Fucking wierd problem with ChiselTester. The timing is all wierd getting signals that are high for only half a CC
+- Next time: check out lates version of chisel-tester (publishLocal??) and see if that fixes it
+- Then Its on to the AuctionController and then we can try to get this thing UP AND RUNNING GAWD DAMN IT
+- Also think about moving data to/from BRAM. 
+
+
+### January 22 SearchTask done
+- Its done but it is un-pipelined. But that can easily be fixed later. as long as we dont make it dependent on that oter places
+- Fixed PE also but next time update the tests.
+- Currently DataDistributor always requests memWidth from the memory. It probably should be it shouldnt be necessary to
+need the whole
+
 ### January 18 SearchTask
 - We need to consider cases when nPEs are less then problemsize 
 maybe currently forget about optimizing it? 

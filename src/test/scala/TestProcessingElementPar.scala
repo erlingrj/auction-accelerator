@@ -1,5 +1,7 @@
 package auction
 
+
+import chisel3.experimental.BundleLiterals._
 import org.scalatest._
 import chiseltest._
 import chisel3._
@@ -13,147 +15,53 @@ class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with 
     val memWidth = 32
     val maxProblemSize = 8
   }
+
   behavior of "ProcessingElementPar"
   it should "Initialize correctly" in {
-    test(new ProcessingElementPar(AuctionTestParams)) {c =>
+    test(new ProcessingElementPar(AuctionTestParams)) { c =>
       // c.regState.expect(c.sIdle)
       // c.regReward.expect(0.U)
       // c.regPrice.expect(0.U)
       // c.regBenefit.expect(0.U)
 
-      c.io.benefitOut.valid.expect(false.B)
-      c.io.rewardIn.ready.expect(false.B)
-      c.io.priceIn.ready.expect(false.B)
+
+      c.io.PEResultOut.valid.expect(false.B)
+      c.io.rewardIn.ready.expect(true.B)
+
+      c.io.controlIn.ready.expect(true.B)
     }
   }
+
   it should "Calculate single benefit" in {
-    test(new ProcessingElementPar(AuctionTestParams)) {c =>
-      c.io.priceIn.initSource.setSourceClock(c.clock)
+    test(new ProcessingElementPar(AuctionTestParams)) { c =>
+      c.io.controlIn.initSource.setSourceClock(c.clock)
       c.io.rewardIn.initSource.setSourceClock(c.clock)
-      c.io.benefitOut.initSink().setSinkClock(c.clock)
+      c.io.PEResultOut.initSink().setSinkClock(c.clock)
 
       fork {
-        c.io.priceIn.enqueue(4.U)
+        c.io.controlIn.enqueue(chiselTypeOf(c.io.controlIn).bits.Lit(_.prices -> VecInit(Seq(5.U))))
       }.fork {
-        c.io.rewardIn.enqueue(8.U)
+        c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 8.U, _.id ->0.U, _.last -> true.B))
       }.fork {
-        c.io.benefitOut.expectDequeue(4.U)
+        c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(_.benefit -> 3.U, _.id -> 0.U, _.last->true.B))
       }.join()
     }
   }
 
   it should "Handle negative benefit" in {
-    test(new ProcessingElementPar(AuctionTestParams)) {c =>
-      c.io.priceIn.initSource.setSourceClock(c.clock)
+    test(new ProcessingElementPar(AuctionTestParams)) { c =>
+      c.io.controlIn.initSource.setSourceClock(c.clock)
       c.io.rewardIn.initSource.setSourceClock(c.clock)
-      c.io.benefitOut.initSink().setSinkClock(c.clock)
-
+      c.io.PEResultOut.initSink().setSinkClock(c.clock)
       fork {
-        c.io.priceIn.enqueue(8.U)
+        c.io.controlIn.enqueue(chiselTypeOf(c.io.controlIn).bits.Lit(_.prices -> VecInit(Seq(16.U))))
       }.fork {
-        c.io.rewardIn.enqueue(4.U)
+        c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 8.U, _.id -> 0.U, _.last -> false.B))
       }.fork {
-        c.io.benefitOut.expectDequeue("hffff_fffc".U)
+        c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(_.benefit -> 0.U, _.id -> 0.U, _.last -> false.B))
       }.join()
     }
   }
 
-
-  it should "Handle a stream of input data" in {
-    test(new ProcessingElementPar(AuctionTestParams)) {c =>
-      c.io.priceIn.initSource.setSourceClock(c.clock)
-      c.io.rewardIn.initSource.setSourceClock(c.clock)
-      c.io.benefitOut.initSink().setSinkClock(c.clock)
-
-      c.io.priceIn.bits.poke(100.U)
-      c.io.priceIn.valid.poke(true.B)
-      fork {
-        c.io.rewardIn.enqueueSeq(Seq.tabulate(100)(i => (i+100).U))
-      }.fork {
-        c.io.benefitOut.expectDequeueSeq(Seq.tabulate(100)(i => (i.U)))
-      }.join()
-    }
-  }
-
-  it should "handle stalling on output interface" in {
-    test(new ProcessingElementPar(AuctionTestParams)) {c =>
-      c.io.priceIn.initSource.setSourceClock(c.clock)
-      c.io.rewardIn.initSource.setSourceClock(c.clock)
-      c.io.benefitOut.initSink().setSinkClock(c.clock)
-
-      val price = 45
-      c.io.priceIn.bits.poke(price.U)
-      c.io.priceIn.valid.poke(true.B)
-      val it = 100
-      val rewardIn = Seq.tabulate(it)(i => (45+i))
-
-      fork {
-        c.io.rewardIn.enqueueSeq(rewardIn.map(_.U))
-      }.fork {
-        for (i <- 0 until it) {
-          if (i%4 == 0) {
-            c.clock.step(50)
-          }
-          c.io.benefitOut.expectDequeue((rewardIn(i)-price).U)
-        }
-      }.join()
-    }
-  }
-
-  it should "Handle stalling on input interface" in {
-    test(new ProcessingElementPar(AuctionTestParams)) {c =>
-      c.io.priceIn.initSource.setSourceClock(c.clock)
-      c.io.rewardIn.initSource.setSourceClock(c.clock)
-      c.io.benefitOut.initSink().setSinkClock(c.clock)
-
-      val it = 100
-      val priceIn = 69
-      val rewardIn = Seq.tabulate(it)(i => (i+69))
-      c.io.priceIn.valid.poke(true.B)
-      c.io.priceIn.bits.poke(priceIn.U)
-
-      fork {
-        for (i <- 0 until it) {
-          if (i%4 == 0) {
-            c.clock.step(50)
-          }
-          c.io.rewardIn.enqueue(rewardIn(i).U)
-        }
-      }.fork {
-        c.io.benefitOut.expectDequeueSeq(rewardIn.map( a => (a - 69).U))
-      }.join()
-    }
-  }
 }
 
-class TestPEsToSearchTask extends FlatSpec with ChiselScalatestTester with Matchers {
-
-  object AuctionTestParams extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 32
-    val memWidth = 32
-    val maxProblemSize = 8
-  }
-  behavior of "PEsToSearchTask"
-
-  it should "Pass out correctly" in {
-    test(new PEsToSearchTask(AuctionTestParams)) {c =>
-      c.peIn.map(_.initSource.setSourceClock(c.clock))
-      c.searchOut.initSink.setSinkClock(c.clock)
-
-      fork {
-        c.peIn(0).enqueueSeq(Seq(1.U,2.U))
-      }.fork {
-        c.peIn(1).enqueueSeq(Seq(3.U,4.U))
-      }.fork {
-        c.peIn(2).enqueueSeq(Seq(5.U,6.U))
-      }.fork {
-        c.peIn(3).enqueueSeq(Seq(7.U,8.U))
-      }.fork {
-        c.searchOut.expectDequeueSeq(
-          Seq(1.U, 3.U, 5.U, 7.U, 2.U, 4.U, 6.U, 8.U)
-        )
-      }.join()
-    }
-  }
-}
