@@ -40,6 +40,8 @@ class MemoryCtrlIO(ap: AuctionParams, mp: MemReqParams) extends Bundle {
     memData.valid := false.B
     memData.bits := 0.U.asTypeOf(new MemData(ap))
     unassignedAgents.ready := false.B
+    requestedAgents.valid := false.B
+    requestedAgents.bits := DontCare
   }
 }
 
@@ -73,7 +75,7 @@ abstract class MemoryController(ap: AuctionParams,mp: MemReqParams) extends Mult
 
   // Get the Base address for the price row belonging to an object
   def getBaseAddrForAgent(agent: UInt, nObjs: UInt, baseAddr: UInt) : UInt = {
-    (baseAddr + agent*nObjs*ap.bitWidth.U >> 3).asUInt()
+    baseAddr + (agent*nObjs*ap.bitWidth.U >> 3).asUInt()
   }
 }
 

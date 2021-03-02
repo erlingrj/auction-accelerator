@@ -22,10 +22,11 @@ class DataDistributorParUnO(ap: AuctionParams) extends MultiIOModule {
   require(ap.memWidth % ap.bitWidth == 0, "[DD] Aligned mem access only")
 
   def getSubWord(word: UInt, idx: Int): UInt = {
-    word(idx*ap.bitWidth, (idx+1)*ap.bitWidth)
+    word((idx+1)*ap.bitWidth-1, idx*ap.bitWidth)
   }
 
   io.mem.ready := io.peOut(0).ready
+
 
   io.peOut.zipWithIndex.map({
     case (pe, idx) =>

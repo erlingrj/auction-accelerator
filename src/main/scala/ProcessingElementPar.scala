@@ -43,7 +43,7 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
 
   val regReward = RegInit(0.U(ap.bitWidth.W))
   val regPrice = RegInit(0.U(ap.bitWidth.W))
-  val regIdx = RegInit(id.U(ap.agentWidth.W))
+  val regIdx = RegInit(0.U(ap.agentWidth.W))
   val regBenefit = RegInit(0.U(ap.bitWidth.W))
   val regLast = RegInit(false.B)
 
@@ -54,15 +54,15 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
 
   switch (regState) {
     is (sIdle) {
+
       io.controlIn.ready := true.B
       io.rewardIn.ready := true.B
 
       // Idle state. We wait for valid input on both rewardIn and priceIn
       when(io.rewardIn.valid && io.controlIn.valid) {
-
         assert(regIdx < (ap.maxProblemSize/ap.nPEs).U)
         regReward := io.rewardIn.bits.reward
-        regPrice := regPrice(regIdx)
+        regPrice := io.controlIn.bits.prices(regIdx)
         regState := sProcess
         regLast := io.rewardIn.bits.last
 
@@ -70,12 +70,13 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
     }
     is (sProcess) {
       // We do calculation (subtraction) beware that we might get negative reward so check msb later
-
+      printf("process\n")
       val diff = regReward.zext() - regPrice.zext()
       regBenefit := Mux(diff(ap.bitWidth) === 1.U, 0.U, diff(ap.bitWidth-1, 0))
       regState := sFinished
     }
     is (sFinished) {
+      printf("finish\n")
       // Expose result
       io.PEResultOut.valid := true.B
       io.PEResultOut.bits.benefit := regBenefit

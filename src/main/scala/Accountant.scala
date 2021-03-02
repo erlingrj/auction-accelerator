@@ -121,7 +121,7 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
       // Check if we were able to fire off new memory request (or maybe we didnt have to)
       when(io.memoryRequest.fire || !newRequest) {
           regState := sWaitForBid
-        }.otherwise {
+        }.otherwise { // If we werent able to fire the memory request. Redo the update stage
           regState := sUpdate
         }
       }

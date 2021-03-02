@@ -18,7 +18,7 @@ class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with 
 
   behavior of "ProcessingElementPar"
   it should "Initialize correctly" in {
-    test(new ProcessingElementPar(AuctionTestParams)) { c =>
+    test(new ProcessingElementPar(AuctionTestParams, 0)) { c =>
       // c.regState.expect(c.sIdle)
       // c.regReward.expect(0.U)
       // c.regPrice.expect(0.U)
@@ -33,35 +33,53 @@ class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with 
   }
 
   it should "Calculate single benefit" in {
-    test(new ProcessingElementPar(AuctionTestParams)) { c =>
-      c.io.controlIn.initSource.setSourceClock(c.clock)
+    test(new ProcessingElementPar(AuctionTestParams, 0)) { c =>
+    //  c.io.controlIn.initSource.setSourceClock(c.clock)
       c.io.rewardIn.initSource.setSourceClock(c.clock)
       c.io.PEResultOut.initSink().setSinkClock(c.clock)
 
-      fork {
-        c.io.controlIn.enqueue(chiselTypeOf(c.io.controlIn).bits.Lit(_.prices -> VecInit(Seq(5.U))))
-      }.fork {
-        c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 8.U, _.id ->0.U, _.last -> true.B))
-      }.fork {
-        c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(_.benefit -> 3.U, _.id -> 0.U, _.last->true.B))
-      }.join()
+      c.io.controlIn.valid.poke(true.B)
+      c.io.controlIn.bits.prices(0).poke(5.U)
+      c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 8.U, _.last -> true.B))
+      c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(_.benefit -> 3.U, _.id -> 0.U, _.last->true.B))
     }
   }
 
   it should "Handle negative benefit" in {
-    test(new ProcessingElementPar(AuctionTestParams)) { c =>
+    test(new ProcessingElementPar(AuctionTestParams, 0)) { c =>
       c.io.controlIn.initSource.setSourceClock(c.clock)
       c.io.rewardIn.initSource.setSourceClock(c.clock)
       c.io.PEResultOut.initSink().setSinkClock(c.clock)
       fork {
-        c.io.controlIn.enqueue(chiselTypeOf(c.io.controlIn).bits.Lit(_.prices -> VecInit(Seq(16.U))))
+        c.io.controlIn.valid.poke(true.B)
+        c.io.controlIn.bits.prices(0).poke(16.U)
+        c.clock.step(1)
       }.fork {
-        c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 8.U, _.id -> 0.U, _.last -> false.B))
+        c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 8.U,  _.last -> false.B))
       }.fork {
         c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(_.benefit -> 0.U, _.id -> 0.U, _.last -> false.B))
       }.join()
     }
   }
 
+  it should "Handle multiple rounds" in {
+    test(new ProcessingElementPar(AuctionTestParams, 3)) { c =>
+      c.io.controlIn.initSource.setSourceClock(c.clock)
+      c.io.rewardIn.initSource.setSourceClock(c.clock)
+      c.io.PEResultOut.initSink().setSinkClock(c.clock)
+      fork {
+        c.clock.step(1)
+      }.fork {
+        c.io.controlIn.valid.poke(true.B)
+        c.io.controlIn.bits.prices(0).poke(4.U)
+        c.io.controlIn.bits.prices(1).poke(5.U)
+        c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 5.U,  _.last -> false.B))
+        c.io.rewardIn.enqueue(chiselTypeOf(c.io.rewardIn).bits.Lit(_.reward -> 10.U,  _.last -> true.B))
+      }.fork {
+        c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(_.benefit -> 1.U, _.id -> 3.U, _.last -> false.B))
+        c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(_.benefit -> 5.U, _.id -> 7.U, _.last -> true.B))
+      }.join()
+    }
+  }
 }
 

@@ -41,13 +41,12 @@ class Controller(ap: AuctionParams, mp: MemReqParams) extends Module {
   val io = IO(new ControllerIO(ap, mp))
   io.driveDefaults()
 
-  val sIdle :: sSetup :: sRunning :: sWriteBack :: sDone :: Nil = Enum(4)
+  val sIdle :: sSetup :: sRunning :: sWriteBack :: sDone :: Nil = Enum(5)
   val regState = RegInit(sIdle)
   val regCount = RegInit(0.U(ap.agentWidth.W))
 
   // Connect memory requested to auction controller
   io.memoryRequestedIn <> io.memoryRequestedOut
-
 
   switch (regState) {
     is (sIdle) {
@@ -89,4 +88,8 @@ class Controller(ap: AuctionParams, mp: MemReqParams) extends Module {
       }
     }
   }
+
+  val regCycleCount = RegInit(0.U(32.W))
+  regCycleCount := regCycleCount + 1.U
+  io.rfCtrl.cycleCount := regCycleCount
 }

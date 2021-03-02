@@ -1,3 +1,4 @@
+/*
 package auction
 
 import org.scalatest._
@@ -157,3 +158,4 @@ class TestPEsToSearchTask extends FlatSpec with ChiselScalatestTester with Match
     }
   }
 }
+*/

@@ -45,7 +45,9 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
       initClocks(c)
 
       // Request 8x8bit words starting from address 0
-      c.ioCtrl.unassignedAgents.enqueueNow(chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(_.baseAddr->64.U,_.numWords -> 8.U))
+      c.ioCtrl.regFile.baseAddr.poke(64.U)
+
+      c.ioCtrl.unassignedAgents.enqueueNow(chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(_.agent->0.U,_.nObjects -> 8.U))
 
       c.ioMem.req.expectDequeue(chiselTypeOf(c.ioMem.req).bits.Lit(
         _.addr->64.U,
@@ -62,10 +64,12 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     test(new AuctionDRAMController(ap, mp)) { c =>
       initClocks(c)
 
+
+      c.ioCtrl.regFile.baseAddr.poke(64.U)
       // Request 8x8bit words starting from address 0
       c.ioCtrl.unassignedAgents.enqueue(chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(
-        _.baseAddr->64.U,
-        _.numWords -> 12.U
+        _.agent->0.U,
+        _.nObjects -> 12.U
       ))
 
       c.ioMem.req.expectDequeue(chiselTypeOf(c.ioMem.req).bits.Lit(
@@ -91,10 +95,11 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     test(new AuctionDRAMController(ap, mp)).withAnnotations(verilator) { c =>
       initClocks(c)
 
+      c.ioCtrl.regFile.baseAddr.poke(64.U)
       // Request 8x8bit words starting from address 0
       c.ioCtrl.unassignedAgents.enqueueNow(chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(
-        _.baseAddr->64.U,
-        _.numWords -> 8.U
+        _.agent->64.U,
+        _.nObjects -> 8.U
       ))
 
       c.ioMem.req.expectDequeue(chiselTypeOf(c.ioMem.req).bits.Lit(
@@ -134,10 +139,11 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     test(new AuctionDRAMController(ap, mp)).withAnnotations(verilator) { c =>
       initClocks(c)
 
+      c.ioCtrl.regFile.baseAddr.poke(64.U)
       // Request 8x8bit words starting from address 0
       c.ioCtrl.unassignedAgents.enqueueNow(chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(
-        _.baseAddr->64.U,
-        _.numWords -> 12.U
+        _.agent->64.U,
+        _.nObjects -> 12.U
       ))
 
       c.ioMem.req.expectDequeueSeq(Seq(
