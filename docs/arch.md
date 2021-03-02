@@ -1,6 +1,8 @@
 # Action Algorithm architecture
 
-
+## Memory interfaces
+- AXI BRAM controller has 1024 bit wide interfaces
+- AXI HP is 64 bit
 
 ## Accountant
 

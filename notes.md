@@ -14,6 +14,18 @@ The first is a parallell processing parallell Search the second is sequential an
 
 ## Log
 
+### Feb 23:
+- All parts are connected. We need to test everything
+- TestDataDistributor: Done
+
+#### Milica meeting
+- Formalize performance mathematically: Depends on
+1. nPEs
+2. problem-size
+3. bitwidth
+4. memory width
+- Work towards getting a minmal version up and running on the bloody ZYnq.
+
 ### Feb 9: More dataflow
 - meeting with milica
 -> Do software simulations to see how a "fuzzy" approach would do
