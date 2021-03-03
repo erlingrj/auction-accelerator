@@ -25,22 +25,14 @@ class AppControlSignals extends Bundle {
 class AppInfoSignals extends Bundle {
   val start = Input(Bool())
   val baseAddr = Input(UInt(64.W))
-  val nRows = Input(UInt(32.W))
-  val nCols = Input(UInt(32.W))
   val nAgents = Input(UInt(32.W))
   val nObjects = Input(UInt(32.W))
+  val baseAddrRes = Input(UInt(64.W))
 }
 
 // read and sum a contiguous stream of 32-bit uints from main memory
-class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
+class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccelerator(p) {
   val numMemPorts = 1
-
-  object ap extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 16
-    val maxProblemSize = 8
-    val memWidth = 16
-  }
 
   val io = IO(new GenericAcceleratorIF(numMemPorts, p) {
     val rfOut = new AppControlSignals()
@@ -61,11 +53,33 @@ class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
   val accountant = Module(new AccountantNonPipelined(ap,mp))
   val dataMux = Module(new DataDistributorParUnO(ap))
 
+  val wrP = new StreamWriterParams(
+    streamWidth = ap.bitWidth,
+    mem = p.toMemReqParams(),
+    chanID = 0,
+    maxBeats = 1
+  )
+
+  val memWriter = Module(new StreamWriter(wrP))
+  memWriter.io.req <> io.memPort(0).memWrReq
+  memWriter.io.rsp <> io.memPort(0).memWrRsp
+  io.memPort(0).memWrDat <> memWriter.io.wdat
+
+  memWriter.io.in <> accountant.io.writeBackStream.wrData
+  memWriter.io.start := accountant.io.writeBackStream.start
+  memWriter.io.baseAddr := io.rfIn.baseAddrRes
+  memWriter.io.byteCount := io.rfIn.nObjects*8.U //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
+
+
   val pes = for (i <- 0 until ap.nPEs) yield {
     Module(new ProcessingElementPar(ap,i))
   }
   val search = Module(new SearchTaskPar(ap))
 
+  memController.ioMem.req <> io.memPort(0).memRdReq
+  memController.ioMem.rsp <> io.memPort(0).memRdRsp
+
+  memController.ioCtrl.regFile <> io.rfIn
   memController.ioCtrl.memData <> dataMux.io.mem
 
   for (i <- 0 until ap.nPEs) {

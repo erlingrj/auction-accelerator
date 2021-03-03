@@ -1,0 +1,69 @@
+[*]
+[*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
+[*] Wed Mar  3 13:40:41 2021
+[*]
+[dumpfile] "/home/erling/dev/chisel/auction-accelerator/test_run_dir/AccountantNonPipelined_should_writeback_correct_prices/AccountantNonPipelined.vcd"
+[dumpfile_mtime] "Wed Mar  3 13:32:09 2021"
+[dumpfile_size] 35525
+[savefile] "/home/erling/dev/chisel/auction-accelerator/waves/accountantNonPipelined.gtkw"
+[timestart] 79
+[size] 2560 1320
+[pos] -1 -1
+*-4.651690 83 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 602
+[signals_width] 318
+[sst_expanded] 1
+[sst_vpaned_height] 394
+@22
+AccountantNonPipelined.regAssignments_0_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_0_valid
+@22
+AccountantNonPipelined.regAssignments_1_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_1_valid
+@22
+AccountantNonPipelined.regAssignments_2_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_2_valid
+@22
+AccountantNonPipelined.regAssignments_3_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_3_valid
+@22
+AccountantNonPipelined.regAssignments_4_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_4_valid
+@22
+AccountantNonPipelined.regAssignments_5_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_5_valid
+@22
+AccountantNonPipelined.regAssignments_6_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_6_valid
+@22
+AccountantNonPipelined.regAssignments_7_agent[3:0]
+@28
+AccountantNonPipelined.regAssignments_7_valid
+@22
+AccountantNonPipelined.regPrices_0[7:0]
+AccountantNonPipelined.regPrices_1[7:0]
+AccountantNonPipelined.regPrices_2[7:0]
+AccountantNonPipelined.regPrices_3[7:0]
+AccountantNonPipelined.regPrices_4[7:0]
+AccountantNonPipelined.regPrices_5[7:0]
+AccountantNonPipelined.regPrices_6[7:0]
+AccountantNonPipelined.regPrices_7[7:0]
+AccountantNonPipelined.regPrices_8[7:0]
+AccountantNonPipelined.regWBCount[15:0]
+@28
+AccountantNonPipelined.io_writeBackStream_start
+@22
+AccountantNonPipelined.io_writeBackStream_wrData_bits[31:0]
+@28
+AccountantNonPipelined.io_writeBackStream_wrData_ready
+@29
+AccountantNonPipelined.io_writeBackStream_wrData_valid
+[pattern_trace] 1
+[pattern_trace] 0

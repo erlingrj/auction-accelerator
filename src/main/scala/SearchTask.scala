@@ -7,7 +7,7 @@ import chisel3.util._
 // The search tasks takes in one net benefit at the time and calculates the
 // total highest, its index and its bid which is passed along to next node
 class SearchTaskResult(private val ap: AuctionParams) extends Bundle {
-  val winner = UInt(log2Ceil(ap.nPEs).W)
+  val winner = UInt(ap.agentWidth.W)
   val bid = UInt(ap.bitWidth.W)
 }
 

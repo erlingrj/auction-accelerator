@@ -14,6 +14,12 @@ The first is a parallell processing parallell Search the second is sequential an
 
 ## Log
 
+## March 3:
+- Finished testing all submodules. Now ready for the auction algorithm itself.
+- Currently fails at MemoryController due to a misaligned memory access. Figure that shit out. 
+- The challenge is, as always, in the memory interface
+- We need to get this stuff to the BRAM
+
 ### Feb 23:
 - All parts are connected. We need to test everything
 - TestDataDistributor: Done

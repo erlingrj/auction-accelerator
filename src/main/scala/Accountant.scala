@@ -17,14 +17,17 @@ abstract class Accountant(ap: AuctionParams, mp: MemReqParams) extends MultiIOMo
 }
 
 
-
+class WriteBackStream(ap: AuctionParams, mp:MemReqParams) extends Bundle {
+  val start = Output(Bool())
+  val wrData = Decoupled(UInt(32.W)) // TODO: One-size for prices AND agents? Or one streamwriter per?
+}
 
 class AccountantIO(ap: AuctionParams,mp: MemReqParams) extends Bundle {
   val searchResultIn = Flipped(Decoupled(new SearchTaskResult(ap)))
 
   // MemoryRqeust and memoryRequested are the two interfaces to the queues to Memory Controller
   val memoryRequest = Decoupled(new AgentInfo(ap,mp))
-  val memoryRequested = Decoupled(new AgentInfo(ap,mp))
+  val memoryRequested = Flipped(Decoupled(new AgentInfo(ap,mp)))
 
   val PEControlOut = Vec(ap.nPEs, Decoupled(new PEControl(ap)))
 
@@ -32,6 +35,8 @@ class AccountantIO(ap: AuctionParams,mp: MemReqParams) extends Bundle {
 
   val doWriteBack = Input(Bool())
   val writeBackDone = Output(Bool())
+
+  val writeBackStream = new WriteBackStream(ap,mp)
 
   def driveDefaults(): Unit = {
     PEControlOut.map({case (out) =>
@@ -42,6 +47,10 @@ class AccountantIO(ap: AuctionParams,mp: MemReqParams) extends Bundle {
     memoryRequest.valid := false.B
     memoryRequest.bits := DontCare
     memoryRequested.ready := false.B
+    writeBackDone := false.B
+    writeBackStream.start := false.B
+    writeBackStream.wrData.valid := false.B
+    writeBackStream.wrData.bits := DontCare
   }
 }
 
@@ -54,18 +63,16 @@ class Assignment(private val ap: AuctionParams) extends Bundle {
 class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
   extends Accountant(ap,mp)
 {
+  // regAssignments holds the mapping object->agent. regAssignment[2] == 3 => obj 2 is owned by agent 3
   val regAssignments = RegInit(VecInit(Seq.fill(ap.maxProblemSize)(0.U.asTypeOf(new Assignment(ap)))))
   val regCurrentAgent = RegInit(0.U)
   val regPrices = RegInit(VecInit(Seq.fill(ap.maxProblemSize)(0.U(ap.bitWidth.W))))
 
   // Connect prices to output
   var regPriceIdx = 0
-  for (i <- 0 until ap.nPEs) {
-    io.PEControlOut(i).valid := true.B
-    for (j <- 0 until ap.maxProblemSize/ap.nPEs) {
-      io.PEControlOut(i).bits.prices(j) := regPrices(regPriceIdx)
-      regPriceIdx += 1
-    }
+  io.PEControlOut.map(_.valid := true.B)
+  regPrices.zipWithIndex.map { case (p: UInt, i: Int) =>
+    io.PEControlOut((i % ap.nPEs)).bits.prices(i / ap.nPEs) := p
   }
 
   val regObject = RegInit(0.U(ap.agentWidth.W))
@@ -73,9 +80,10 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
 
   // State machine
 
-  val sWaitForBid :: sUpdate :: sWriteBack :: Nil = Enum(3)
+  val sWaitForBid :: sUpdate :: sWriteBackAssignments :: sWriteBackPrices :: Nil = Enum(4)
   val regState = RegInit(sWaitForBid)
   val regInitCount = 0.U(ap.agentWidth.W)
+  val regWBCount = RegInit(0.U(ap.maxProblemSize.W))
 
   switch (regState) {
     is (sWaitForBid) {
@@ -91,7 +99,7 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
       }
 
       when(io.doWriteBack) {
-        regState := sWriteBack
+        regState := sWriteBackAssignments
       }
     }
 
@@ -114,7 +122,9 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
           assert(io.memoryRequest.ready === true.B)
 
           // Update assignments and prices
-          regAssignments(regObject) := regCurrentAgent
+          regAssignments(regObject).agent:= regCurrentAgent
+          regAssignments(regObject).valid := true.B
+
           regPrices(regObject) := regBid
         }
       }
@@ -125,10 +135,32 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
           regState := sUpdate
         }
       }
-    is (sWriteBack)  {
-      // TODO: How is the result written back
-      io.writeBackDone := true.B
-      regState := sWaitForBid
+    is (sWriteBackAssignments)  {
+      when(regWBCount === io.rfInfo.nObjects) {
+        regWBCount := 0.U
+        regState := sWriteBackPrices
+      }.otherwise {
+        io.writeBackStream.start := true.B
+        io.writeBackStream.wrData.valid := true.B
+        io.writeBackStream.wrData.bits := regAssignments(regWBCount).agent
+        when(io.writeBackStream.wrData.fire()) {
+          regWBCount := regWBCount + 1.U
+        }
+      }
+    }
+    is (sWriteBackPrices) {
+      when (regWBCount === io.rfInfo.nObjects) {
+        regWBCount := 0.U
+        regState := sWaitForBid
+        io.writeBackDone := true.B
+      }.otherwise {
+        io.writeBackStream.start := true.B
+        io.writeBackStream.wrData.valid := true.B
+        io.writeBackStream.wrData.bits := regPrices(regWBCount)
+        when (io.writeBackStream.wrData.fire()) {
+          regWBCount := regWBCount + 1.U
+        }
+      }
     }
   }
 }

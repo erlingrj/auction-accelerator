@@ -63,7 +63,9 @@ class Controller(ap: AuctionParams, mp: MemReqParams) extends Module {
         io.memoryRequestOut.valid := true.B
         io.memoryRequestOut.bits.agent := regCount
         io.memoryRequestOut.bits.nObjects := io.rfInfo.nObjects
-        regCount := regCount - 1.U
+        when (io.memoryRequestOut.fire()) {
+          regCount := regCount - 1.U
+        }
       }
     }
     is (sRunning) {

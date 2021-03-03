@@ -70,13 +70,11 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
     }
     is (sProcess) {
       // We do calculation (subtraction) beware that we might get negative reward so check msb later
-      printf("process\n")
       val diff = regReward.zext() - regPrice.zext()
       regBenefit := Mux(diff(ap.bitWidth) === 1.U, 0.U, diff(ap.bitWidth-1, 0))
       regState := sFinished
     }
     is (sFinished) {
-      printf("finish\n")
       // Expose result
       io.PEResultOut.valid := true.B
       io.PEResultOut.bits.benefit := regBenefit

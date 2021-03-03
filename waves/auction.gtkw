@@ -1,0 +1,40 @@
+[*]
+[*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
+[*] Wed Mar  3 17:57:42 2021
+[*]
+[dumpfile] "/home/erling/dev/chisel/auction-accelerator/test_run_dir/AuctionAlgo_should_work_on_simple_4x4_example/TesterWrapper.vcd"
+[dumpfile_mtime] "Wed Mar  3 17:54:17 2021"
+[dumpfile_size] 239867
+[savefile] "/home/erling/dev/chisel/auction-accelerator/waves/auction.gtkw"
+[timestart] 0
+[size] 2560 1320
+[pos] -1 -1
+*-6.000000 108 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TesterWrapper.
+[sst_width] 407
+[signals_width] 545
+[sst_expanded] 1
+[sst_vpaned_height] 394
+@800200
+-mem
+@24
+TesterWrapper.Auction.memController.ioMem_req_bits_addr[47:0]
+@28
+TesterWrapper.Auction.memController.ioMem_req_ready
+TesterWrapper.Auction.memController.ioMem_req_valid
+@22
+TesterWrapper.Auction.memController.ioMem_rsp_bits_readData[63:0]
+@28
+TesterWrapper.Auction.memController.ioMem_rsp_ready
+TesterWrapper.Auction.memController.ioMem_rsp_valid
+@1000200
+-mem
+@28
+TesterWrapper.Auction.memController.ioCtrl_unassignedAgents_valid
+TesterWrapper.Auction.memController.ioCtrl_unassignedAgents_ready
+@22
+TesterWrapper.Auction.memController.ioCtrl_unassignedAgents_bits_agent[2:0]
+@28
+TesterWrapper.Auction.memController.ioCtrl_unassignedAgents_bits_nObjects[2:0]
+[pattern_trace] 1
+[pattern_trace] 0
