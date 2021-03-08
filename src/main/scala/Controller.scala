@@ -14,22 +14,22 @@ class ControllerIO(ap: AuctionParams, mp: MemReqParams) extends Bundle {
   val rfCtrl  = new AppControlSignals()
   val rfInfo = new AppInfoSignals()
 
-  val memoryRequestIn = Flipped(Decoupled(new AgentInfo(ap,mp)))
-  val memoryRequestOut = Decoupled(new AgentInfo(ap,mp))
+  val unassignedAgentsIn = Flipped(Decoupled(new AgentInfo(ap,mp)))
+  val unassignedAgentsOut = Decoupled(new AgentInfo(ap,mp))
 
-  val memoryRequestedIn = Flipped(Decoupled(new AgentInfo(ap,mp)))
-  val memoryRequestedOut = Decoupled(new AgentInfo(ap,mp))
+  val requestedAgentsIn = Flipped(Decoupled(new AgentInfo(ap,mp)))
+  val requestedAgentsOut = Decoupled(new AgentInfo(ap,mp))
 
   val doWriteBack = Output(Bool())
   val writeBackDone = Input(Bool())
 
   def driveDefaults() = {
-    memoryRequestedIn.ready := false.B
-    memoryRequestedOut.valid := false.B
-    memoryRequestedOut.bits := DontCare
-    memoryRequestIn.ready := false.B
-    memoryRequestOut.valid := false.B
-    memoryRequestOut.bits := DontCare
+    requestedAgentsIn.ready := false.B
+    requestedAgentsOut.valid := false.B
+    requestedAgentsOut.bits := DontCare
+    unassignedAgentsIn.ready := false.B
+    unassignedAgentsOut.valid := false.B
+    unassignedAgentsOut.bits := DontCare
 
     doWriteBack := false.B
     rfCtrl.finished := false.B
@@ -41,40 +41,52 @@ class Controller(ap: AuctionParams, mp: MemReqParams) extends Module {
   val io = IO(new ControllerIO(ap, mp))
   io.driveDefaults()
 
+  val constBackDownCount = 10
+
   val sIdle :: sSetup :: sRunning :: sWriteBack :: sDone :: Nil = Enum(5)
   val regState = RegInit(sIdle)
   val regCount = RegInit(0.U(ap.agentWidth.W))
+  val regBackDownCount = RegInit(0.U(log2Ceil(constBackDownCount).W))
 
   // Connect memory requested to auction controller
-  io.memoryRequestedIn <> io.memoryRequestedOut
+  io.requestedAgentsIn <> io.requestedAgentsOut
+
+  when (io.requestedAgentsOut.fire()) {
+    regBackDownCount := constBackDownCount.U
+  }
 
   switch (regState) {
     is (sIdle) {
       // Wait for start signal
       when (io.rfInfo.start === true.B) {
         regState := sSetup
-        regCount := io.rfInfo.nAgents
+        regCount := io.rfInfo.nAgents - 1.U
       }
     }
     is (sSetup) {
-      when (regCount === 0.U) {
-        regState := sRunning
-      }.otherwise {
-        io.memoryRequestOut.valid := true.B
-        io.memoryRequestOut.bits.agent := regCount
-        io.memoryRequestOut.bits.nObjects := io.rfInfo.nObjects
-        when (io.memoryRequestOut.fire()) {
-          regCount := regCount - 1.U
+        io.unassignedAgentsOut.valid := true.B
+        io.unassignedAgentsOut.bits.agent := regCount
+        io.unassignedAgentsOut.bits.nObjects := io.rfInfo.nObjects
+        when (io.unassignedAgentsOut.fire()) {
+          when (regCount === 0.U) {
+            regState := sRunning
+          }.otherwise {
+            regCount := regCount - 1.U
+          }
         }
-      }
     }
+
     is (sRunning) {
       // Here we connect the Accountant to the Memory Controller
-      io.memoryRequestOut <> io.memoryRequestIn
+      io.unassignedAgentsOut <> io.unassignedAgentsIn
 
       // Then we check for finished condition
-      when (!io.memoryRequestedIn.ready && !io.memoryRequestIn.valid) {
+      when (!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid && regBackDownCount === 0.U) {
         regState := sWriteBack
+      }.otherwise {
+        when (regBackDownCount > 0.U) {
+          regBackDownCount := regBackDownCount - 1.U
+        }
       }
     }
     is (sWriteBack) {

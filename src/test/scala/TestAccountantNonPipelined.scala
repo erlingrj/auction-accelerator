@@ -22,8 +22,8 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
 
   def initClocks(c: Accountant): Unit = {
     c.io.searchResultIn.initSource().setSourceClock(c.clock)
-    c.io.memoryRequest.initSink().setSinkClock(c.clock)
-    c.io.memoryRequested.initSource().setSourceClock(c.clock)
+    c.io.unassignedAgents.initSink().setSinkClock(c.clock)
+    c.io.requestedAgents.initSource().setSourceClock(c.clock)
     c.io.PEControlOut.map(_.initSink().setSinkClock(c.clock))
     c.io.writeBackStream.wrData.initSink().setSinkClock(c.clock)
   }
@@ -35,8 +35,8 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
 
   def mockAssignment(c: Accountant, agent: Int, obj: Int, bid: Int): Unit = {
       fork {
-        c.io.memoryRequested.enqueue(
-          chiselTypeOf(c.io.memoryRequested).bits.Lit(
+        c.io.requestedAgents.enqueue(
+          chiselTypeOf(c.io.requestedAgents).bits.Lit(
             _.agent -> agent.U,
             _.nObjects -> 8.U
           ))
@@ -55,7 +55,7 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
 
   it should "Initialize correctly" in {
     test(new AccountantNonPipelined(ap, mp)) { c =>
-      c.io.memoryRequest.valid.expect(false.B)
+      c.io.unassignedAgents.valid.expect(false.B)
       c.io.PEControlOut.map(_.bits.prices.map(_.expect(0.U)))
     }
   }
@@ -63,7 +63,7 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
   it should "update price correctly" in {
     test(new AccountantNonPipelined(ap, mp)) { c =>
       initClocks(c)
-      c.io.memoryRequest.ready.poke(true.B)
+      c.io.unassignedAgents.ready.poke(true.B)
       mockAssignment(c, agent=5, obj=6, bid=10)
         c.clock.step(5)
         c.io.PEControlOut(2).bits.prices(1).expect(10.U)
@@ -78,8 +78,8 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
         mockAssignment(c, agent=5, obj=6, bid=10)
         mockAssignment(c, agent=6, obj=6, bid=12)
       }.fork {
-        c.io.memoryRequest.expectDequeue(
-          chiselTypeOf(c.io.memoryRequest).bits.Lit(
+        c.io.unassignedAgents.expectDequeue(
+          chiselTypeOf(c.io.unassignedAgents).bits.Lit(
             _.agent -> 5.U,
             _.nObjects -> 8.U
           )
@@ -93,7 +93,7 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
     test(new AccountantNonPipelined(ap, mp)) { c =>
       initClocks(c)
       initRF(c)
-      c.io.memoryRequest.ready.poke(true.B)
+      c.io.unassignedAgents.ready.poke(true.B)
       mockAssignment(c, agent=1, obj=0, bid=10)
       mockAssignment(c, agent=0, obj=1, bid=12)
       mockAssignment(c, agent=3, obj=2, bid=7)
@@ -107,6 +107,20 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
       c.io.doWriteBack.poke(true.B)
       c.io.writeBackStream.wrData.expectDequeueSeq(Seq(1.U,0.U,3.U,2.U,6.U,5.U,7.U,4.U))
       c.io.writeBackStream.wrData.expectDequeueSeq(Seq(10.U, 12.U, 7.U,8.U,2.U,33.U,1.U,10.U))
+    }
+  }
+
+  it should "not schedule new unassigned" in {
+    test(new AccountantNonPipelined(ap, mp)) { c =>
+      initClocks(c)
+      initRF(c)
+      c.io.unassignedAgents.ready.poke(true.B)
+      mockAssignment(c, agent=3, obj=2,bid=10)
+      c.io.unassignedAgents.valid.expect(false.B)
+      for (i <- 0 until 10) {
+        c.clock.step(1)
+        c.io.unassignedAgents.valid.expect(false.B)
+      }
     }
   }
 

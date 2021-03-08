@@ -13,6 +13,28 @@ The first is a parallell processing parallell Search the second is sequential an
 
 
 ## Log
+## March 8: Memory integratio work better
+- Unaligned memory access now works.
+- Need to test more with multiple rounds.
+- Need to test evictions 
+- Should we implement Auction in Scala?
+- Should we add a valid bit to assignments and prices?
+- We should get a full C++ version running with Verilator. We need a reg-file-driver++, but FPGA-tidbits should help
+with that. Then should we try getting it onto the PYNQ? First ZedBoard with C++
+
+
+
+## March 5: Integration tests
+- Basic 4x4 super simple problem works.
+- Working with unaligned example (5x4) problem where we get skewed memory stuff
+- New memory assumption:
+EACH ROW STARTS IS ALIGNED TO 64 BIT MEM ROWS
+- Its implemented in MemoryController.
+- NEXT TIME: fix the setting up of memory in TestAucition. Consider implementing SW auction in Scala
+
+## March 4: Debugging TesterWrapper for memory interactions
+- MPORT = write-port
+- io_memReadData_MPORT = read-port
 
 ## March 3:
 - Finished testing all submodules. Now ready for the auction algorithm itself.

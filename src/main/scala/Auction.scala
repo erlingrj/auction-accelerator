@@ -53,8 +53,15 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   val accountant = Module(new AccountantNonPipelined(ap,mp))
   val dataMux = Module(new DataDistributorParUnO(ap))
 
+  // create some queues
+  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=8))
+  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=8))
+
+
+
+
   val wrP = new StreamWriterParams(
-    streamWidth = ap.bitWidth,
+    streamWidth = p.memDataBits,
     mem = p.toMemReqParams(),
     chanID = 0,
     maxBeats = 1
@@ -68,8 +75,8 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   memWriter.io.in <> accountant.io.writeBackStream.wrData
   memWriter.io.start := accountant.io.writeBackStream.start
   memWriter.io.baseAddr := io.rfIn.baseAddrRes
-  memWriter.io.byteCount := io.rfIn.nObjects*8.U //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
-
+  memWriter.io.byteCount := io.rfIn.nObjects*(8*2).U //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
+  accountant.io.writeBackStream.finished := memWriter.io.finished
 
   val pes = for (i <- 0 until ap.nPEs) yield {
     Module(new ProcessingElementPar(ap,i))
@@ -89,14 +96,22 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   }
 
   search.io.resultOut <> accountant.io.searchResultIn
-  controller.io.memoryRequestIn <> accountant.io.memoryRequest
-  controller.io.memoryRequestedOut <> accountant.io.memoryRequested
+
+  // MemController <> qUnassigned <> Controller <> Auction
+  memController.ioCtrl.unassignedAgents <> qUnassignedAgents.io.deq
+  qUnassignedAgents.io.enq <> controller.io.unassignedAgentsOut
+  controller.io.unassignedAgentsIn <> accountant.io.unassignedAgents
+
+  memController.ioCtrl.requestedAgents <> qRequestedAgents.io.enq
+  qRequestedAgents.io.deq <> controller.io.requestedAgentsIn
+  controller.io.requestedAgentsOut <> accountant.io.requestedAgents
+
+
+
   controller.io.writeBackDone := accountant.io.writeBackDone
   accountant.io.doWriteBack := controller.io.doWriteBack
   accountant.io.rfInfo := io.rfIn
 
-  controller.io.memoryRequestedIn <> memController.ioCtrl.requestedAgents
-  controller.io.memoryRequestOut <> memController.ioCtrl.unassignedAgents
   controller.io.rfInfo := io.rfIn
   io.rfOut := controller.io.rfCtrl
 

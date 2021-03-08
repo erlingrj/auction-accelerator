@@ -136,7 +136,63 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
         chiselTypeOf(c.io.resultOut)
           .bits.Lit(_.winner -> 0.U, _.bid ->0.U)
       )
-
     }
   }
+
+  it should "Find highest value with zero benefit" in {
+    test(new SearchTaskPar(AuctionTestParams)) { c =>
+      c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
+      c.io.resultOut.initSink().setSinkClock(c.clock)
+      fork {
+        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 3.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(1)).bits.Lit(_.id -> 1.U, _.benefit -> 4.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(2)).bits.Lit(_.id -> 2.U, _.benefit -> 0.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(3)).bits.Lit(_.id -> 3.U, _.benefit -> 2.U, _.last->true.B))
+      }.fork {
+        c.io.resultOut.expectDequeue(
+          chiselTypeOf(c.io.resultOut)
+            .bits.Lit(_.winner -> 1.U, _.bid -> 1.U)
+        )
+      }.join()
+    }
+  }
+  it should "solve two consecutive problems" in {
+    test(new SearchTaskPar(AuctionTestParams)) { c =>
+      c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
+      c.io.resultOut.initSink().setSinkClock(c.clock)
+      fork {
+        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 2.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(1)).bits.Lit(_.id -> 1.U, _.benefit -> 3.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(2)).bits.Lit(_.id -> 2.U, _.benefit -> 4.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(3)).bits.Lit(_.id -> 3.U, _.benefit -> 1.U, _.last->true.B))
+      }.fork {
+        c.io.resultOut.expectDequeue(
+          chiselTypeOf(c.io.resultOut)
+            .bits.Lit(_.winner -> 2.U, _.bid -> 1.U)
+        )
+      }.join()
+
+      fork {
+        c.io.benefitIn(0).enqueueNow(chiselTypeOf(c.io.benefitIn(0)).bits.Lit(_.id -> 0.U, _.benefit -> 3.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(1).enqueueNow(chiselTypeOf(c.io.benefitIn(1)).bits.Lit(_.id -> 1.U, _.benefit -> 4.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(2).enqueueNow(chiselTypeOf(c.io.benefitIn(2)).bits.Lit(_.id -> 2.U, _.benefit -> 0.U, _.last->true.B))
+      }.fork {
+        c.io.benefitIn(3).enqueueNow(chiselTypeOf(c.io.benefitIn(3)).bits.Lit(_.id -> 3.U, _.benefit -> 2.U, _.last->true.B))
+      }.fork {
+        c.io.resultOut.expectDequeue(
+          chiselTypeOf(c.io.resultOut)
+            .bits.Lit(_.winner -> 1.U, _.bid -> 1.U)
+        )
+      }.join()
+    }
+  }
+
 }

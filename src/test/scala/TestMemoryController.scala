@@ -44,6 +44,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     test(new AuctionDRAMController(ap, mp)) { c =>
       initClocks(c)
 
+      c.ioCtrl.requestedAgents.ready.poke(true.B)
       // Request 8x8bit words starting from address 0
       c.ioCtrl.regFile.baseAddr.poke(64.U)
 
@@ -64,6 +65,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     test(new AuctionDRAMController(ap, mp)) { c =>
       initClocks(c)
 
+      c.ioCtrl.requestedAgents.ready.poke(true.B)
 
       c.ioCtrl.regFile.baseAddr.poke(64.U)
       // Request 8x8bit words starting from address 0
@@ -95,6 +97,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     test(new AuctionDRAMController(ap, mp)).withAnnotations(verilator) { c =>
       initClocks(c)
 
+      c.ioCtrl.requestedAgents.ready.poke(true.B)
       c.ioCtrl.regFile.baseAddr.poke(64.U)
       // Request 8x8bit words starting from address 0
       c.ioCtrl.unassignedAgents.enqueueNow(chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(
@@ -139,6 +142,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     test(new AuctionDRAMController(ap, mp)).withAnnotations(verilator) { c =>
       initClocks(c)
 
+      c.ioCtrl.requestedAgents.ready.poke(true.B)
       c.ioCtrl.regFile.baseAddr.poke(64.U)
       // Request 8x8bit words starting from address 0
       c.ioCtrl.unassignedAgents.enqueueNow(chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(
@@ -204,4 +208,81 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
       c.clock.step(10)
     }
   }
+
+
+  it should "generate unaligned mem access" in {
+    object ap extends AuctionParams {
+      val nPEs = 4
+      val bitWidth = 16
+      val memWidth = 64
+      val maxProblemSize = 64
+    }
+
+    test(new AuctionDRAMController(ap, mp)) { c =>
+      initClocks(c)
+
+      // Request 8x8bit words starting from address 0
+      c.ioCtrl.regFile.baseAddr.poke(0.U)
+      c.ioCtrl.requestedAgents.ready.poke(true.B)
+      c.ioCtrl.unassignedAgents.enqueueNow(
+        chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(
+          _.agent -> 1.U,
+          _.nObjects -> 5.U
+        ))
+
+      c.ioMem.req.expectDequeue(chiselTypeOf(c.ioMem.req).bits.Lit(
+        _.addr -> 16.U,
+        _.numBytes -> 8.U,
+        _.isWrite -> false.B,
+        _.channelID -> 0.U,
+        _.metaData -> 0.U
+      ))
+      c.ioMem.req.expectDequeue(chiselTypeOf(c.ioMem.req).bits.Lit(
+        _.addr -> 24.U,
+        _.numBytes -> 8.U,
+        _.isWrite -> false.B,
+        _.channelID -> 0.U,
+        _.metaData -> 0.U
+      ))
+
+    }
+  }
+
+    it should "generate unaligned mem access2" in {
+      object ap extends AuctionParams {
+        val nPEs = 4
+        val bitWidth = 16
+        val memWidth = 64
+        val maxProblemSize = 64
+      }
+
+      test(new AuctionDRAMController(ap, mp)) { c =>
+        initClocks(c)
+
+        // Request 8x8bit words starting from address 0
+        c.ioCtrl.regFile.baseAddr.poke(0.U)
+        c.ioCtrl.requestedAgents.ready.poke(true.B)
+
+        c.ioCtrl.unassignedAgents.enqueueNow(
+          chiselTypeOf(c.ioCtrl.unassignedAgents).bits.Lit(
+            _.agent -> 3.U,
+            _.nObjects -> 5.U
+          ))
+
+        c.ioMem.req.expectDequeue(chiselTypeOf(c.ioMem.req).bits.Lit(
+          _.addr -> 48.U,
+          _.numBytes -> 8.U,
+          _.isWrite -> false.B,
+          _.channelID -> 0.U,
+          _.metaData -> 0.U
+        ))
+        c.ioMem.req.expectDequeue(chiselTypeOf(c.ioMem.req).bits.Lit(
+          _.addr -> 56.U,
+          _.numBytes -> 8.U,
+          _.isWrite -> false.B,
+          _.channelID -> 0.U,
+          _.metaData -> 0.U
+        ))
+      }
+    }
 }

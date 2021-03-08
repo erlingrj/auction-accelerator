@@ -176,6 +176,7 @@ class SearchTaskPar(ap: AuctionParams) extends MultiIOModule {
       }
 
       when(io.resultOut.fire()) {
+        runningWinner.benefit := 0.U
         regState := sIdle
       }
       }

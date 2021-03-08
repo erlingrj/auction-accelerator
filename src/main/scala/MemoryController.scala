@@ -52,6 +52,9 @@ abstract class MemoryController(ap: AuctionParams,mp: MemReqParams) extends Mult
 
   val constWordsPerRequst = mp.dataWidth / ap.bitWidth
 
+  require(ap.bitWidth >= 8)
+  val constBytesPerValue = (ap.bitWidth/8).U
+
   // This function generates a mask based on the numWordsLeft value
   def createOutputMask(numWordsLeft: UInt): UInt = {
     (1.U << numWordsLeft) - 1.U
@@ -66,16 +69,22 @@ abstract class MemoryController(ap: AuctionParams,mp: MemReqParams) extends Mult
     val result = WireInit(0.U(mp.dataWidth.W))
 
     when((bytes & alignToMask) === 0.U) {
-      result := (bytes & (~alignToMask).asUInt)
+      result := bytes
     }.otherwise {
-      result := (bytes & (~alignToMask).asUInt) + alignTo.U
+      val temp = WireInit(bytes & (~alignToMask).asUInt)
+      result := temp + alignTo.U
     }
     result
   }
 
   // Get the Base address for the price row belonging to an object
+  // remember that all addresses are aligned to 8-byte boundaries
+
   def getBaseAddrForAgent(agent: UInt, nObjs: UInt, baseAddr: UInt) : UInt = {
-    baseAddr + (agent*nObjs*ap.bitWidth.U >> 3).asUInt()
+    val nObjsWireExt = Wire(UInt((nObjs.getWidth+1).W)) // Extend nObjs with 1 bit so we can fit rowsPerAgent on itg
+    nObjsWireExt := nObjs
+    val rowsPerAgent = RoundUpAlign(8, nObjsWireExt*constBytesPerValue)
+    baseAddr + (agent*rowsPerAgent)
   }
 }
 
@@ -98,6 +107,10 @@ class AuctionDRAMController(
   rg.io.ctrl.start := false.B
   rg.io.ctrl.byteCount := DontCare
 
+  // Queue for memory responsens
+  val qMemRsp = Module(new Queue(new GenericMemoryResponse(mp), 8)).io
+  qMemRsp.enq <> ioMem.rsp
+  qMemRsp.deq.ready := false.B // INitialize to false
   // No errors
   assert(rg.io.stat.error === false.B, "[mem-ctrl] error in RG")
 
@@ -122,16 +135,17 @@ class AuctionDRAMController(
         // Add that agent to the requested queue
         ioCtrl.requestedAgents.valid := true.B
         ioCtrl.requestedAgents.bits := agentReq
+        assert(ioCtrl.requestedAgents.ready === true.B)
       }
     }
 
     is(sReading) {
       // Connect the data distributor to the rsp port
-      ioMem.rsp.ready := ioCtrl.memData.ready
-      when (ioMem.rsp.fire()) {
+      qMemRsp.deq.ready := ioCtrl.memData.ready
+      when (qMemRsp.deq.fire()) {
 
         ioCtrl.memData.valid := true.B
-        ioCtrl.memData.bits.data := ioMem.rsp.bits.readData
+        ioCtrl.memData.bits.data := qMemRsp.deq.bits.readData
 
         when (regNumWordsLeft > constWordsPerRequst.U) {
           ioCtrl.memData.bits.mask := ~(0.U(ap.memWidth.W))

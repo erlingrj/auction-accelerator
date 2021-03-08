@@ -20,14 +20,15 @@ abstract class Accountant(ap: AuctionParams, mp: MemReqParams) extends MultiIOMo
 class WriteBackStream(ap: AuctionParams, mp:MemReqParams) extends Bundle {
   val start = Output(Bool())
   val wrData = Decoupled(UInt(32.W)) // TODO: One-size for prices AND agents? Or one streamwriter per?
+  val finished = Input(Bool())
 }
 
 class AccountantIO(ap: AuctionParams,mp: MemReqParams) extends Bundle {
   val searchResultIn = Flipped(Decoupled(new SearchTaskResult(ap)))
 
   // MemoryRqeust and memoryRequested are the two interfaces to the queues to Memory Controller
-  val memoryRequest = Decoupled(new AgentInfo(ap,mp))
-  val memoryRequested = Flipped(Decoupled(new AgentInfo(ap,mp)))
+  val unassignedAgents = Decoupled(new AgentInfo(ap,mp))
+  val requestedAgents = Flipped(Decoupled(new AgentInfo(ap,mp)))
 
   val PEControlOut = Vec(ap.nPEs, Decoupled(new PEControl(ap)))
 
@@ -44,9 +45,9 @@ class AccountantIO(ap: AuctionParams,mp: MemReqParams) extends Bundle {
       out.bits := DontCare
     })
     searchResultIn.ready := false.B
-    memoryRequest.valid := false.B
-    memoryRequest.bits := DontCare
-    memoryRequested.ready := false.B
+    unassignedAgents.valid := false.B
+    unassignedAgents.bits := DontCare
+    requestedAgents.ready := false.B
     writeBackDone := false.B
     writeBackStream.start := false.B
     writeBackStream.wrData.valid := false.B
@@ -80,7 +81,7 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
 
   // State machine
 
-  val sWaitForBid :: sUpdate :: sWriteBackAssignments :: sWriteBackPrices :: Nil = Enum(4)
+  val sWaitForBid :: sUpdate :: sWriteBackAssignments :: sWriteBackPrices :: sWaitForFinished :: Nil = Enum(5)
   val regState = RegInit(sWaitForBid)
   val regInitCount = 0.U(ap.agentWidth.W)
   val regWBCount = RegInit(0.U(ap.maxProblemSize.W))
@@ -90,11 +91,11 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
       // Wait for searchResultIn and MemoryRequested
       io.searchResultIn.ready := true.B
       when (io.searchResultIn.fire()) {
-        io.memoryRequested.ready := true.B
-        assert(io.memoryRequested.valid === true.B)
+        io.requestedAgents.ready := true.B
+        assert(io.requestedAgents.valid === true.B)
         regObject := io.searchResultIn.bits.winner
         regBid := io.searchResultIn.bits.bid
-        regCurrentAgent := io.memoryRequested.bits.agent
+        regCurrentAgent := io.requestedAgents.bits.agent
         regState := sUpdate
       }
 
@@ -108,18 +109,18 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
       when (regBid > 0.U) {
         // We have a valid bid but we have to check whether the bid already theres is higher
         when(regAssignments(regObject).valid && (regPrices(regObject) > regBid))  {
-          io.memoryRequest.valid := true.B
+          io.unassignedAgents.valid := true.B
           newRequest := true.B
-          io.memoryRequest.bits.agent := regCurrentAgent
-          io.memoryRequest.bits.nObjects := io.rfInfo.nObjects
-          assert(io.memoryRequest.ready === true.B)
+          io.unassignedAgents.bits.agent := regCurrentAgent
+          io.unassignedAgents.bits.nObjects := io.rfInfo.nObjects
+          assert(io.unassignedAgents.ready === true.B)
         }.otherwise {
           // Kick out the potentially old guy
-          io.memoryRequest.valid := regAssignments(regObject).valid
+          io.unassignedAgents.valid := regAssignments(regObject).valid
           newRequest := regAssignments(regObject).valid
-          io.memoryRequest.bits.agent := regAssignments(regObject).agent
-          io.memoryRequest.bits.nObjects := io.rfInfo.nObjects
-          assert(io.memoryRequest.ready === true.B)
+          io.unassignedAgents.bits.agent := regAssignments(regObject).agent
+          io.unassignedAgents.bits.nObjects := io.rfInfo.nObjects
+          assert(io.unassignedAgents.ready === true.B)
 
           // Update assignments and prices
           regAssignments(regObject).agent:= regCurrentAgent
@@ -129,18 +130,18 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
         }
       }
       // Check if we were able to fire off new memory request (or maybe we didnt have to)
-      when(io.memoryRequest.fire || !newRequest) {
+      when(io.unassignedAgents.fire || !newRequest) {
           regState := sWaitForBid
         }.otherwise { // If we werent able to fire the memory request. Redo the update stage
           regState := sUpdate
         }
       }
     is (sWriteBackAssignments)  {
+      io.writeBackStream.start := true.B
       when(regWBCount === io.rfInfo.nObjects) {
         regWBCount := 0.U
         regState := sWriteBackPrices
       }.otherwise {
-        io.writeBackStream.start := true.B
         io.writeBackStream.wrData.valid := true.B
         io.writeBackStream.wrData.bits := regAssignments(regWBCount).agent
         when(io.writeBackStream.wrData.fire()) {
@@ -149,17 +150,23 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
       }
     }
     is (sWriteBackPrices) {
+      io.writeBackStream.start := true.B
       when (regWBCount === io.rfInfo.nObjects) {
         regWBCount := 0.U
-        regState := sWaitForBid
-        io.writeBackDone := true.B
+        regState := sWaitForFinished
       }.otherwise {
-        io.writeBackStream.start := true.B
         io.writeBackStream.wrData.valid := true.B
         io.writeBackStream.wrData.bits := regPrices(regWBCount)
         when (io.writeBackStream.wrData.fire()) {
           regWBCount := regWBCount + 1.U
         }
+      }
+    }
+    is (sWaitForFinished) {
+      io.writeBackStream.start := true.B
+      when (io.writeBackStream.finished === true.B) {
+        regState := sWaitForBid
+        io.writeBackDone := true.B
       }
     }
   }

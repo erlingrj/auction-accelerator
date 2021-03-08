@@ -3,8 +3,6 @@ package auction
 import chisel3._
 import chisel3.util._
 
-
-
 // ProcessingElements do the processing (subtraction) and calculates the net benefit
 // ProcessingElementPar is the "paralell" implementation
 
@@ -40,13 +38,11 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
 
   val sIdle :: sProcess :: sFinished :: Nil = Enum(3)
   val regState = RegInit(sIdle)
-
   val regReward = RegInit(0.U(ap.bitWidth.W))
   val regPrice = RegInit(0.U(ap.bitWidth.W))
   val regIdx = RegInit(0.U(ap.agentWidth.W))
   val regBenefit = RegInit(0.U(ap.bitWidth.W))
   val regLast = RegInit(false.B)
-
 
   // Drive signals to default
   io.driveDefaults()
@@ -65,7 +61,8 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
         regPrice := io.controlIn.bits.prices(regIdx)
         regState := sProcess
         regLast := io.rewardIn.bits.last
-
+      }.elsewhen(io.rewardIn.bits.last) {
+        regIdx := 0.U
       }
     }
     is (sProcess) {
@@ -80,7 +77,7 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
       io.PEResultOut.bits.benefit := regBenefit
       io.PEResultOut.bits.id := getId(regIdx)
       io.PEResultOut.bits.last := regLast
-      when (io.PEResultOut.fire) {
+      when (io.PEResultOut.fire()) {
         when (regLast) {
           regIdx := 0.U
         } otherwise {
