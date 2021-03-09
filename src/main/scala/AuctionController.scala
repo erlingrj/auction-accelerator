@@ -24,7 +24,7 @@ class StreamReaderControlSignals extends Bundle {
 class AuctionControllerIO(ap: AuctionParams) extends Bundle {
   val searchResultIn = Flipped(Decoupled(new SearchTaskResult(ap)))
   val streamReaderCtrlSignals = Flipped(new StreamReaderControlSignals)
-  val pricesOut = Vec(ap.nProcessingElements, Decoupled(UInt(ap.datSz.W)))
+  val pricesOut = Vec(ap.nPEs, Decoupled(UInt(ap.bitWidth.W)))
   val start = Input(Bool())
   val finished = Output(Bool())
   val baseAddress = Input(UInt(64.W))
@@ -52,27 +52,27 @@ class AuctionController(ap: AuctionParams) extends MultiIOModule {
 
   // getRowBaseAddr returns the start-address for a given row.
   def getRowBaseAddr(rowIdx: UInt, nCols: UInt, baseAddr: UInt): UInt = {
-    baseAddr + rowIdx*nCols*(ap.datSz/8).U
+    baseAddr + rowIdx*nCols*(ap.bitWidth/8).U
   }
 
-  val constUnassigned = ap.nProcessingElements
-  val constAssSz = log2Ceil(ap.nProcessingElements)
+  val constUnassigned = ap.nPEs
+  val constAssSz = log2Ceil(ap.nPEs)
   // This function looks up object at index <obj> and checks if the MSb is set
   def objectIsAssigned(obj: UInt): Bool = {
     (regAssignments(obj) >> constAssSz).asUInt === 0.U
   }
 
   // Initialize the agent->object assignments. Unassigned == high bit set
-  val regAssignments = RegInit(VecInit(Seq.fill(ap.nProcessingElements){
-    0.U((log2Ceil(ap.nProcessingElements) + 1).W)}))
-  val qUnassigned = Module(new Queue(UInt(), ap.nProcessingElements)).io
+  val regAssignments = RegInit(VecInit(Seq.fill(ap.nPEs){
+    0.U((log2Ceil(ap.nPEs) + 1).W)}))
+  val qUnassigned = Module(new Queue(UInt(), ap.nPEs)).io
   qUnassigned.deq.ready := false.B
   qUnassigned.enq.valid := false.B
   qUnassigned.enq.bits := DontCare
 
   val regCurrentAgent= RegInit(0.U)
 
-  val regPrices = RegInit(VecInit(Seq.fill(ap.nProcessingElements){0.U(ap.datSz.W)}))
+  val regPrices = RegInit(VecInit(Seq.fill(ap.nPEs){0.U(ap.bitWidth.W)}))
   // Connect prices to the PEs
   (io.pricesOut zip regPrices).map({
     case (io, reg) =>
@@ -85,7 +85,7 @@ class AuctionController(ap: AuctionParams) extends MultiIOModule {
   val sSetup :: sIdle :: sReading :: sFinished :: Nil = Enum(4)
   val regState = RegInit(sSetup)
 
-  val cnt = RegInit(0.U(log2Ceil(ap.nProcessingElements).W))
+  val cnt = RegInit(0.U(log2Ceil(ap.nPEs).W))
   switch (regState) {
 
     is (sSetup) {
@@ -95,7 +95,7 @@ class AuctionController(ap: AuctionParams) extends MultiIOModule {
       // Set the objects to unassigned
       regAssignments(cnt) := constUnassigned.U
 
-      when (cnt === (ap.nProcessingElements - 1).U) {
+      when (cnt === (ap.nPEs - 1).U) {
         cnt := 0.U
         regState := sIdle
       }.otherwise {
@@ -116,7 +116,7 @@ class AuctionController(ap: AuctionParams) extends MultiIOModule {
           // Start the streamReader
           io.streamReaderCtrlSignals.start := true.B
           io.streamReaderCtrlSignals.baseAddr := getRowBaseAddr(unassigned, io.nCols, io.baseAddress)
-          io.streamReaderCtrlSignals.byteCount := io.nCols * (ap.datSz/8).U
+          io.streamReaderCtrlSignals.byteCount := io.nCols * (ap.bitWidth/8).U
 
           regState := sReading
         }.otherwise {

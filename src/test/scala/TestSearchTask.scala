@@ -1,3 +1,4 @@
+/*
 package auction
 
 import org.scalatest._
@@ -7,9 +8,12 @@ import chisel3.experimental.BundleLiterals._
 
 class TestSearchTask extends FlatSpec with ChiselScalatestTester with Matchers {
 
+
   object AuctionTestParams extends AuctionParams {
-    val nProcessingElements = 4
-    val datSz = 32
+    val nPEs = 4
+    val bitWidth = 32
+    val memWidth = 32
+    val maxProblemSize = 8
   }
 
   behavior of "SearchTask"
@@ -147,3 +151,6 @@ class TestSearchTask extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 }
+
+
+ */

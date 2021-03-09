@@ -7,17 +7,17 @@ import chisel3.util._
 // This class connects all the PEs to the single Search Task
 // TODO: Support reset?
 class PEsToSearchTask(ap: AuctionParams) extends MultiIOModule {
-  val peIn = IO(Vec(ap.nProcessingElements, Flipped(Decoupled(UInt(ap.datSz.W)))))
-  val searchOut = IO(Decoupled(UInt(ap.datSz.W)))
+  val peIn = IO(Vec(ap.nPEs, Flipped(Decoupled(UInt(ap.bitWidth.W)))))
+  val searchOut = IO(Decoupled(UInt(ap.bitWidth.W)))
 
   // Drive defaults
   peIn.map(_.ready := false.B)
-  val cnt  = RegInit(0.U(log2Ceil(ap.nProcessingElements).W))
+  val cnt  = RegInit(0.U(log2Ceil(ap.nPEs).W))
 
   searchOut <> peIn(cnt)
 
   when(searchOut.fire) {
-    when(cnt === (ap.nProcessingElements - 1).U) {
+    when(cnt === (ap.nPEs - 1).U) {
       cnt := 0.U
     }.otherwise {
       cnt := cnt + 1.U
@@ -27,9 +27,9 @@ class PEsToSearchTask(ap: AuctionParams) extends MultiIOModule {
 
 // ProcessingElements do the processing (subtraction) and calculates the net benefit
 class ProessingElementIO(ap: AuctionParams) extends Bundle {
-  val rewardIn = Flipped(Decoupled(UInt(ap.datSz.W)))
-  val priceIn = Flipped(Decoupled(UInt(ap.datSz.W)))
-  val benefitOut = Decoupled(UInt(ap.datSz.W))
+  val rewardIn = Flipped(Decoupled(UInt(ap.bitWidth.W)))
+  val priceIn = Flipped(Decoupled(UInt(ap.bitWidth.W)))
+  val benefitOut = Decoupled(UInt(ap.bitWidth.W))
 }
 
 class ProcessingElement(ap: AuctionParams) extends MultiIOModule {
@@ -38,9 +38,9 @@ class ProcessingElement(ap: AuctionParams) extends MultiIOModule {
   val sIdle :: sProcess :: sFinished :: Nil = Enum(3)
   val regState = RegInit(sIdle)
 
-  val regReward = RegInit(0.U(ap.datSz.W))
-  val regPrice = RegInit(0.U(ap.datSz.W))
-  val regBenefit = RegInit(0.U(ap.datSz.W))
+  val regReward = RegInit(0.U(ap.bitWidth.W))
+  val regPrice = RegInit(0.U(ap.bitWidth.W))
+  val regBenefit = RegInit(0.U(ap.bitWidth.W))
 
   // Drive signals to default
   io.rewardIn.ready := false.B

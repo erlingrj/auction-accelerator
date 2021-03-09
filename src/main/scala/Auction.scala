@@ -7,93 +7,122 @@ import fpgatidbits.dma._
 import fpgatidbits.streams._
 
 trait AuctionParams {
-  def nProcessingElements : Int
-  def datSz: Int
+  def nPEs : Int
+  def bitWidth: Int
+  def maxProblemSize: Int
+  def memWidth: Int
+
+  def agentWidth: Int = log2Ceil(maxProblemSize)
+  def pricesPerPE: Int = maxProblemSize/nPEs
+  def pricesPerPEWidth: Int = log2Ceil(pricesPerPE)
+}
+
+class AppControlSignals extends Bundle {
+  val finished = Output(Bool())
+  val cycleCount = Output(UInt(32.W))
+}
+
+class AppInfoSignals extends Bundle {
+  val start = Input(Bool())
+  val baseAddr = Input(UInt(64.W))
+  val nAgents = Input(UInt(32.W))
+  val nObjects = Input(UInt(32.W))
+  val baseAddrRes = Input(UInt(64.W))
 }
 
 // read and sum a contiguous stream of 32-bit uints from main memory
-class Auction(p: PlatformWrapperParams) extends GenericAccelerator(p) {
+class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccelerator(p) {
   val numMemPorts = 1
 
-  object ap extends AuctionParams {
-    val nProcessingElements = 4
-    val datSz = 16
-  }
   val io = IO(new GenericAcceleratorIF(numMemPorts, p) {
-    val start = Input(Bool())
-    val finished = Output(Bool())
-    val baseAddr = Input(UInt(64.W))
-    val nRows = Input(UInt(32.W))
-    val nCols = Input(UInt(32.W))
-    val byteCount = Input(UInt(32.W))
-    val cycleCount = Output(UInt(32.W))
+    val rfOut = new AppControlSignals()
+    val rfIn = new AppInfoSignals()
   })
   io.signature := makeDefaultSignature()
   plugMemWritePort(0)
 
+  val mp = p.toMemReqParams()
+
   val rdP = new StreamReaderParams(
-    streamWidth = 16, fifoElems = 8, mem = p.toMemReqParams(),
+    streamWidth = ap.memWidth, fifoElems = 8, mem = p.toMemReqParams(),
     maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = true
   )
+  // Create all the submodules
+  val memController = Module(new AuctionDRAMController(ap,mp))
+  val controller = Module(new Controller(ap,mp))
+  val accountant = Module(new AccountantNonPipelined(ap,mp))
+  val dataMux = Module(new DataDistributorParUnO(ap))
+
+  // create some queues
+  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=16))
+  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=16))
 
 
-  val reader = Module(new StreamReader(rdP)).io
 
-  val auctionController = Module(new AuctionController(ap))
-  val dataDistributor = Module(new DataDistributor(ap))
-  val searchTask = Module(new SearchTask(ap))
-  val pe = for (i <- 0 until ap.nProcessingElements) yield {
-    Module(new ProcessingElement(ap))
+
+  val wrP = new StreamWriterParams(
+    streamWidth = p.memDataBits,
+    mem = p.toMemReqParams(),
+    chanID = 0,
+    maxBeats = 1
+  )
+
+  val memWriter = Module(new StreamWriter(wrP))
+  memWriter.io.req <> io.memPort(0).memWrReq
+  memWriter.io.rsp <> io.memPort(0).memWrRsp
+  io.memPort(0).memWrDat <> memWriter.io.wdat
+
+  memWriter.io.in <> accountant.io.writeBackStream.wrData
+  memWriter.io.start := accountant.io.writeBackStream.start
+  memWriter.io.baseAddr := io.rfIn.baseAddrRes
+  memWriter.io.byteCount := io.rfIn.nObjects*(8*2).U //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
+  accountant.io.writeBackStream.finished := memWriter.io.finished
+
+  val pes = for (i <- 0 until ap.nPEs) yield {
+    Module(new ProcessingElementPar(ap,i))
   }
-  val peDistributor = Module(new PEsToSearchTask(ap))
+  val search = Module(new SearchTaskPar(ap))
 
-  // Connect Streamreader to Datadistributor
-  dataDistributor.mem <> reader.out
+  memController.ioMem.req <> io.memPort(0).memRdReq
+  memController.ioMem.rsp <> io.memPort(0).memRdRsp
 
-  // Connect DataDistributor to Processing Elements rewardIn port
-  dataDistributor.peOut.zipWithIndex.map( { case (port, idx) => port <> pe(idx).io.rewardIn })
+  memController.ioCtrl.regFile <> io.rfIn
+  memController.ioCtrl.memData <> dataMux.io.mem
 
-  // Connect AuctionController priceOut to PEs priceIn
-  auctionController.io.pricesOut.zipWithIndex.map( {case (port, idx) => port <> pe(idx).io.priceIn})
+  for (i <- 0 until ap.nPEs) {
+    dataMux.io.peOut(i) <> pes(i).io.rewardIn
+    pes(i).io.PEResultOut <> search.io.benefitIn(i)
+    pes(i).io.controlIn <> accountant.io.PEControlOut(i)
+  }
 
-  // Connect ProcessingElements to Search Task
-  pe.zipWithIndex.map({case (pe, idx) => pe.io.benefitOut <> peDistributor.peIn(idx)})
+  search.io.resultOut <> accountant.io.searchResultIn
 
-  // Connect peDistributor to searchTask
-  peDistributor.searchOut <> searchTask.io.benefitIn
+  // MemController <> qUnassigned <> Controller <> Auction
+  memController.ioCtrl.unassignedAgents <> qUnassignedAgents.io.deq
+  qUnassignedAgents.io.enq <> controller.io.unassignedAgentsOut
+  controller.io.unassignedAgentsIn <> accountant.io.unassignedAgents
 
-  // Connect Search Results to the controller
-  searchTask.io.resultOut <> auctionController.io.searchResultIn
-
-  // Connect the auctionController to the streamReader
-  val ctrl = auctionController.io.streamReaderCtrlSignals
-  reader.start := ctrl.start
-  reader.baseAddr := ctrl.baseAddr
-  reader.byteCount := ctrl.byteCount
-  ctrl.finished := reader.finished
-  ctrl.active := reader.active
-  ctrl.error := reader.error
-
- // Connect CSR to Auction controller
-  auctionController.io.nCols := io.nCols
-  auctionController.io.nRows := io.nRows
-  auctionController.io.start := io.start
-  io.finished := auctionController.io.finished
-  auctionController.io.baseAddress := io.baseAddr
-
-  //  when inspecting verilog output of chisel2 synthesis they are commented out of the
-  //  module interface of StreamReader, how?
-  reader.doInit := false.B
-  reader.initCount := 0.U
+  memController.ioCtrl.requestedAgents <> qRequestedAgents.io.enq
+  qRequestedAgents.io.deq <> controller.io.requestedAgentsIn
+  controller.io.requestedAgentsOut <> accountant.io.requestedAgents
 
 
-  reader.req <> io.memPort(0).memRdReq
-  io.memPort(0).memRdRsp <> reader.rsp
+
+  controller.io.writeBackDone := accountant.io.writeBackDone
+  accountant.io.doWriteBack := controller.io.doWriteBack
+  accountant.io.rfInfo := io.rfIn
+
+  controller.io.rfInfo := io.rfIn
+  io.rfOut := controller.io.rfCtrl
+
 
   val regCycleCount = RegInit(0.U(32.W))
-  io.cycleCount := regCycleCount
-  when(!io.start) {regCycleCount := 0.U}
-    .elsewhen(io.start & !io.finished) {regCycleCount := regCycleCount + 1.U}
+  io.rfOut.cycleCount := regCycleCount
+  when(!io.rfIn.start) {
+    regCycleCount := 0.U
+  }.elsewhen(io.rfIn.start & !io.rfOut.finished) {
+    regCycleCount := regCycleCount + 1.U
+  }
 }
 
 
