@@ -74,7 +74,7 @@ class TestController extends FlatSpec with ChiselScalatestTester with Matchers {
 
       c.io.unassignedAgentsOut.expectDequeueSeq(Seq.tabulate(nAgents)(idx =>
         chiselTypeOf(c.io.unassignedAgentsOut).bits.Lit(
-          _.agent -> (nAgents-idx).U, //starts from the highest
+          _.agent -> (nAgents-idx-1).U, //starts from the highest
           _.nObjects -> nObjects.U
         )
       ))

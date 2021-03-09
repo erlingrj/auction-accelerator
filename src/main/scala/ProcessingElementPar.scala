@@ -35,11 +35,12 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
   def getId(idx: UInt): UInt = {
     idx * ap.nPEs.U + id.U
   }
+  val constPricePerPE = ap.maxProblemSize/ap.nPEs
 
-  val sIdle :: sProcess :: sFinished :: Nil = Enum(3)
+  val sIdle :: sProcess :: sIterate :: sFinished :: Nil = Enum(4)
   val regState = RegInit(sIdle)
   val regReward = RegInit(0.U(ap.bitWidth.W))
-  val regPrice = RegInit(0.U(ap.bitWidth.W))
+  val regPrices = RegInit(VecInit(Seq.fill(constPricePerPE)(0.U(ap.bitWidth.W))))
   val regIdx = RegInit(0.U(ap.agentWidth.W))
   val regBenefit = RegInit(0.U(ap.bitWidth.W))
   val regLast = RegInit(false.B)
@@ -50,41 +51,52 @@ class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
 
   switch (regState) {
     is (sIdle) {
-
-      io.controlIn.ready := true.B
-      io.rewardIn.ready := true.B
-
       // Idle state. We wait for valid input on both rewardIn and priceIn
       when(io.rewardIn.valid && io.controlIn.valid) {
-        assert(regIdx < (ap.maxProblemSize/ap.nPEs).U)
+        io.controlIn.ready := true.B
+        io.rewardIn.ready := true.B
+
+        assert(regIdx < (ap.maxProblemSize / ap.nPEs).U)
         regReward := io.rewardIn.bits.reward
-        regPrice := io.controlIn.bits.prices(regIdx)
+        regPrices := io.controlIn.bits.prices
         regState := sProcess
         regLast := io.rewardIn.bits.last
-      }.elsewhen(io.rewardIn.bits.last) {
-        regIdx := 0.U
       }
     }
     is (sProcess) {
       // We do calculation (subtraction) beware that we might get negative reward so check msb later
-      val diff = regReward.zext() - regPrice.zext()
+      val diff = regReward.zext() - regPrices(regIdx).zext()
       regBenefit := Mux(diff(ap.bitWidth) === 1.U, 0.U, diff(ap.bitWidth-1, 0))
       regState := sFinished
     }
+
     is (sFinished) {
       // Expose result
       io.PEResultOut.valid := true.B
       io.PEResultOut.bits.benefit := regBenefit
       io.PEResultOut.bits.id := getId(regIdx)
       io.PEResultOut.bits.last := regLast
-      when (io.PEResultOut.fire()) {
-        when (regLast) {
+      when(io.PEResultOut.fire()) {
+        when(regLast) {
           regIdx := 0.U
+          regState := sIdle
         } otherwise {
           regIdx := regIdx + 1.U
+          regState := sIterate
         }
-        regState := sIdle
       }
     }
+    is (sIterate) {
+      io.rewardIn.ready := true.B
+      when (io.rewardIn.valid) {
+        assert(regIdx < (ap.maxProblemSize / ap.nPEs).U)
+        regReward := io.rewardIn.bits.reward
+        regState := sProcess
+        regLast := io.rewardIn.bits.last
+      }.elsewhen(io.rewardIn.bits.last) {
+        regIdx := 0.U
+        regState := sIdle
+    }
   }
+}
 }

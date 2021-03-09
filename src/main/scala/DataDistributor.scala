@@ -25,14 +25,18 @@ class DataDistributorParUnO(ap: AuctionParams) extends MultiIOModule {
     word((idx+1)*ap.bitWidth-1, idx*ap.bitWidth)
   }
 
-  io.mem.ready := io.peOut(0).ready
+  val qData = Module(new Queue(new MemData(ap), 8))
+  io.mem <> qData.io.enq
+
+
+  qData.io.deq.ready := io.peOut(0).ready
 
 
   io.peOut.zipWithIndex.map({
     case (pe, idx) =>
-      pe.valid := io.mem.valid && io.mem.bits.mask(idx)
-      pe.bits.reward := getSubWord(io.mem.bits.data, idx)
-      pe.bits.last := io.mem.bits.last
+      pe.valid := qData.io.deq.valid && qData.io.deq.bits.mask(idx)
+      pe.bits.reward := getSubWord(qData.io.deq.bits.data, idx)
+      pe.bits.last := qData.io.deq.bits.last
   })
 
 

@@ -33,7 +33,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
 
   it should "Initialize correctly" in {
     test(new AuctionDRAMController(ap, mp)) { c =>
-      c.ioMem.rsp.ready.expect(false.B)
+      c.ioMem.rsp.ready.expect(true.B)
       c.ioMem.req.valid.expect(false.B)
       c.ioCtrl.memData.valid.expect(false.B)
       c.ioCtrl.unassignedAgents.ready.expect(true.B)

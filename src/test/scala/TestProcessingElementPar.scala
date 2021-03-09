@@ -26,9 +26,8 @@ class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with 
 
 
       c.io.PEResultOut.valid.expect(false.B)
-      c.io.rewardIn.ready.expect(true.B)
-
-      c.io.controlIn.ready.expect(true.B)
+      //c.io.rewardIn.ready.expect(true.B)
+      //c.io.controlIn.ready.expect(true.B)
     }
   }
 

@@ -20,9 +20,6 @@ class TestDataDistributorParUnO extends FlatSpec with ChiselScalatestTester with
     test(new DataDistributorParUnO(ap1)) { c =>
       c.io.peOut.map(_.valid.expect(false.B))
       c.io.mem.valid.poke(false.B)
-
-      c.io.peOut.map(_.ready.poke(false.B))
-      c.io.mem.ready.expect(false.B)
     }
   }
 

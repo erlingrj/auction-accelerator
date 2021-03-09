@@ -170,6 +170,31 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
       }
     }
   }
+
+  // We run a separate state machine for the outputting of prices to the PEs
+  val sIdlePrices :: sWaitForUpdate :: Nil = Enum(2)
+  val regStatePrices = RegInit(sIdlePrices)
+
+  switch (regStatePrices) {
+    is (sIdlePrices) {
+      io.PEControlOut.map(_.valid := true.B)
+
+      // PE access prices
+      when (io.PEControlOut.map(_.fire()).reduce(_||_)) {
+        regStatePrices := sWaitForUpdate
+      }
+    }
+
+    // We dont allow the PEs to dequeue any prices until we have the update
+    is (sWaitForUpdate) {
+      io.PEControlOut.map(_.valid := false.B)
+
+      // When we reach the sUpdate stage we know that next iteration we have update the prices and can have valid price output
+      when(regState === sUpdate) {
+        regStatePrices := sIdlePrices
+      }
+    }
+  }
 }
 
 
