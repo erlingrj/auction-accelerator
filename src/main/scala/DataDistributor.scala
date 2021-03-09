@@ -38,7 +38,9 @@ class DataDistributorParUnO(ap: AuctionParams) extends MultiIOModule {
       pe.bits.reward := getSubWord(qData.io.deq.bits.data, idx)
       pe.bits.last := qData.io.deq.bits.last
   })
+}
 
+class DataDistributorReducer(ap: AuctionParams) extends Bundle {
 
 }
 /*
