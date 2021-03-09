@@ -16,6 +16,19 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
     val maxProblemSize = 8
   }
 
+  val rewMatBig: Seq[Seq[Long]]= Seq(
+    Seq(7,   51,  52,  87, 38,  60,  74,  66,   0,  20),
+    Seq(50,  12,   0,  64,   8,  53,   0,  46,  76,  42),
+    Seq(27,  77,   0,  18,  22,  48,  44,  13,   0,  57),
+    Seq(62,   0,   3,   8,   5,   6,  14,   0,  26,  39),
+    Seq(0,   97,   0,   5,  13,   0,  41,  31,  62,  48),
+    Seq(79,  68,   0,   0,  15,  12,  17,  47,  35,  43),
+    Seq(76,  99,  48,  27,  34,   0,   0,   0,  28,   0),
+    Seq(0,   20,   9,  27,  46,  15,  84,  19,   3,  24),
+    Seq(56,  10,  45,  39,   0,  93,  67,  79,  19,  38),
+    Seq(27,   0,  39,  53,  46,  24,  69,  46,  23,   1)
+  )
+
 
   // This function creates a Sequence of 64 bit rows of UInts
   def generateMemoryArray(rows: Seq[Seq[Long]], width: Int): Seq[UInt] = {
@@ -136,6 +149,48 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
       c.expectReg("rfOut_finished", 1.U)
 
       val assignments = Seq(0,2,1,3,0)
+
+      for (j <- 0 until nObjects) {
+        c.expectMem(baseAddrRes + 8*j, assignments(j).U)
+      }
+      // TODO: check prices
+    }
+  }
+  it should "10x10 with 16PEs" in {
+    object ap extends AuctionParams {
+      val nPEs = 8
+      val bitWidth = 8
+      val memWidth = 64
+      val maxProblemSize = 16
+    }
+
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+      val nAgents = 10
+      val nObjects = 10
+      val baseAddr = 0
+      val baseAddrRes = 1024
+      c.writeReg("rfIn_nAgents", nAgents.U)
+      c.writeReg("rfIn_nObjects", nObjects.U)
+      c.writeReg("rfIn_baseAddr", baseAddr.U)
+      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
+
+      val rewardArr = generateMemoryArray(rewMatBig, 8)
+      println(rewardArr)
+      c.arrayToMem(baseAddr, rewardArr)
+      c.writeReg("rfIn_start", 1.U)
+      c.clock.step(1)
+      c.writeReg("rfIn_start", 0.U)
+
+      var cnt = 0
+      while (c.readReg("rfOut_finished").litValue != 1 &&
+        cnt < 1000) {
+
+        c.clock.step()
+        cnt = cnt + 1
+      }
+      c.expectReg("rfOut_finished", 1.U)
+
+      val assignments = Seq(3,4,6,0,9,8,7,5,1,2)
 
       for (j <- 0 until nObjects) {
         c.expectMem(baseAddrRes + 8*j, assignments(j).U)

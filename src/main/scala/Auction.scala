@@ -54,8 +54,8 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   val dataMux = Module(new DataDistributorParUnO(ap))
 
   // create some queues
-  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=8))
-  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=8))
+  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=16))
+  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=16))
 
 
 

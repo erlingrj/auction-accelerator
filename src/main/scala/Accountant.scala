@@ -107,7 +107,25 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
     is (sUpdate) {
       val newRequest = WireInit(false.B)
       when (regBid > 0.U) {
-        // We have a valid bid but we have to check whether the bid already theres is higher
+        // We have a bid
+        // Kick out old guy
+        io.unassignedAgents.valid := regAssignments(regObject).valid
+        newRequest := regAssignments(regObject).valid
+        io.unassignedAgents.bits.agent := regAssignments(regObject).agent
+        io.unassignedAgents.bits.nObjects := io.rfInfo.nObjects
+
+        // Assign new
+        regAssignments(regObject).agent := regCurrentAgent
+        regAssignments(regObject).valid := true.B
+        regPrices(regObject) := regPrices(regObject) + regBid
+
+      // Check if we were able to fire off new memory request (or maybe we didnt have to)
+      when(io.unassignedAgents.fire || !newRequest) {
+          regState := sWaitForBid
+        }.otherwise { // If we werent able to fire the memory request. Redo the update stage
+          regState := sUpdate
+        }
+        /*
         when(regAssignments(regObject).valid && (regPrices(regObject) > regBid))  {
           io.unassignedAgents.valid := true.B
           newRequest := true.B
@@ -128,14 +146,9 @@ class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
 
           regPrices(regObject) := regBid
         }
+         */
       }
-      // Check if we were able to fire off new memory request (or maybe we didnt have to)
-      when(io.unassignedAgents.fire || !newRequest) {
-          regState := sWaitForBid
-        }.otherwise { // If we werent able to fire the memory request. Redo the update stage
-          regState := sUpdate
-        }
-      }
+    }
     is (sWriteBackAssignments)  {
       io.writeBackStream.start := true.B
       when(regWBCount === io.rfInfo.nObjects) {
