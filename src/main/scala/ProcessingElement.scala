@@ -6,7 +6,7 @@ import chisel3.util._
 
 // This class connects all the PEs to the single Search Task
 // TODO: Support reset?
-class PEsToSearchTask(ap: AuctionParams) extends MultiIOModule {
+class PEsToSearchTask(ap: AccountantParams) extends MultiIOModule {
   val peIn = IO(Vec(ap.nPEs, Flipped(Decoupled(UInt(ap.bitWidth.W)))))
   val searchOut = IO(Decoupled(UInt(ap.bitWidth.W)))
 
@@ -26,13 +26,13 @@ class PEsToSearchTask(ap: AuctionParams) extends MultiIOModule {
 }
 
 // ProcessingElements do the processing (subtraction) and calculates the net benefit
-class ProessingElementIO(ap: AuctionParams) extends Bundle {
+class ProessingElementIO(ap: AccountantParams) extends Bundle {
   val rewardIn = Flipped(Decoupled(UInt(ap.bitWidth.W)))
   val priceIn = Flipped(Decoupled(UInt(ap.bitWidth.W)))
   val benefitOut = Decoupled(UInt(ap.bitWidth.W))
 }
 
-class ProcessingElement(ap: AuctionParams) extends MultiIOModule {
+class ProcessingElement(ap: AccountantParams) extends MultiIOModule {
   val io = IO(new ProessingElementIO(ap))
 
   val sIdle :: sProcess :: sFinished :: Nil = Enum(3)

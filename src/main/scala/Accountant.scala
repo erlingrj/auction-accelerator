@@ -3,12 +3,34 @@ package auction
 import chisel3._
 import chisel3.util._
 import fpgatidbits.dma.MemReqParams
+import fpgatidbits.synthutils.PrintableParam
 
 // THe accountant keeps the books on assignments and prices and gives the prices to the PEs
 
 
-abstract class Accountant(ap: AuctionParams, mp: MemReqParams) extends MultiIOModule {
-  val io = IO(new AccountantIO(ap,mp))
+class AccountantParams(
+  val bitWidth: Int,
+  val nPEs: Int,
+  val mrp: MemReqParams,
+  val maxProblemSize: Int
+) extends PrintableParam {
+  
+  override def headersAsList(): List[String] = {
+    List(
+
+    )
+  }
+
+  override def contentAsList(): List[String] = {
+    List(
+
+    )
+  }
+  def agentWidth = log2Ceil(maxProblemSize)
+}
+
+abstract class Accountant(ap: AccountantParams) extends MultiIOModule {
+  val io = IO(new AccountantIO(ap))
 
   def getStartAddrForRow(rowIdx: UInt, nCols: UInt, baseAddr: UInt): UInt = {
     baseAddr + rowIdx*nCols*(ap.bitWidth/8).U
@@ -17,27 +39,38 @@ abstract class Accountant(ap: AuctionParams, mp: MemReqParams) extends MultiIOMo
 }
 
 
-class WriteBackStream(ap: AuctionParams, mp:MemReqParams) extends Bundle {
+class WriteBackStream(ap: AccountantParams) extends Bundle {
   val start = Output(Bool())
   val wrData = Decoupled(UInt(32.W)) // TODO: One-size for prices AND agents? Or one streamwriter per?
   val finished = Input(Bool())
 }
 
-class AccountantIO(ap: AuctionParams,mp: MemReqParams) extends Bundle {
-  val searchResultIn = Flipped(Decoupled(new SearchTaskResult(ap)))
+class AccountantIO(ap: AccountantParams) extends Bundle {
+  val searchTaskParams = new SearchTaskParams(
+    bitWidth = ap.bitWidth,
+    maxProblemSize = ap.maxProblemSize,
+    nPEs = ap.nPEs
+  )
+
+  val searchResultIn = Flipped(Decoupled(new SearchTaskResult(searchTaskParams)))
 
   // MemoryRqeust and memoryRequested are the two interfaces to the queues to Memory Controller
-  val unassignedAgents = Decoupled(new AgentInfo(ap,mp))
-  val requestedAgents = Flipped(Decoupled(new AgentInfo(ap,mp)))
+  val unassignedAgents = Decoupled(new AgentInfo(ap.bitWidth))
+  val requestedAgents = Flipped(Decoupled(new AgentInfo(ap.bitWidth)))
 
-  val PEControlOut = Vec(ap.nPEs, Decoupled(new PEControl(ap)))
+  val peParams = new ProcessingElementParams(
+    bitWidth = ap.bitWidth,
+    maxProblemSize = ap.maxProblemSize,
+    nPEs = ap.nPEs
+  )
+  val PEControlOut = Vec(ap.nPEs, Decoupled(new PEControl(peParams)))
 
   val rfInfo = new AppInfoSignals()
 
   val doWriteBack = Input(Bool())
   val writeBackDone = Output(Bool())
 
-  val writeBackStream = new WriteBackStream(ap,mp)
+  val writeBackStream = new WriteBackStream(ap)
 
   def driveDefaults(): Unit = {
     PEControlOut.map({case (out) =>
@@ -55,14 +88,14 @@ class AccountantIO(ap: AuctionParams,mp: MemReqParams) extends Bundle {
   }
 }
 
-class Assignment(private val ap: AuctionParams) extends Bundle {
+class Assignment(private val ap: AccountantParams) extends Bundle {
   val agent = UInt(ap.agentWidth.W)
   val valid = Bool()
 }
 
 // First try on the parallel auction controller. A non-pipelined version
-class AccountantNonPipelined(ap: AuctionParams, mp: MemReqParams)
-  extends Accountant(ap,mp)
+class AccountantNonPipelined(ap: AccountantParams)
+  extends Accountant(ap)
 {
   // regAssignments holds the mapping object->agent. regAssignment[2] == 3 => obj 2 is owned by agent 3
   val regAssignments = RegInit(VecInit(Seq.fill(ap.maxProblemSize)(0.U.asTypeOf(new Assignment(ap)))))

@@ -13,12 +13,11 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
 
   val verilator = Seq(VerilatorBackendAnnotation)
 
-  object ap extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 8
-    val memWidth = 64
-    val maxProblemSize = 64
-  }
+
+  val mp = new MemReqParams(32, 64, 6, 1, true)
+  val ap = new MemCtrlParams(
+    nPEs = 4, bitWidth = 8, mrp = mp, maxProblemSize = 64
+  )
 
   def initClocks(c: MemoryController): Unit = {
     c.ioMem.req.initSink().setSinkClock(c.clock)
@@ -27,12 +26,10 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
     c.ioCtrl.memData.initSink().setSinkClock(c.clock)
   }
 
-  val mp = new MemReqParams(32, 64, 6, 1, true)
-
   behavior of "MemoryController"
 
   it should "Initialize correctly" in {
-    test(new AuctionDRAMController(ap, mp)) { c =>
+    test(new AuctionDRAMController(ap)) { c =>
       c.ioMem.rsp.ready.expect(true.B)
       c.ioMem.req.valid.expect(false.B)
       c.ioCtrl.memData.valid.expect(false.B)
@@ -41,7 +38,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
   }
 
   it should "generate simple memory request" in  {
-    test(new AuctionDRAMController(ap, mp)) { c =>
+    test(new AuctionDRAMController(ap)) { c =>
       initClocks(c)
 
       c.ioCtrl.requestedAgents.ready.poke(true.B)
@@ -62,7 +59,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
 
   it should "generate complex memory request" in {
 
-    test(new AuctionDRAMController(ap, mp)) { c =>
+    test(new AuctionDRAMController(ap)) { c =>
       initClocks(c)
 
       c.ioCtrl.requestedAgents.ready.poke(true.B)
@@ -94,7 +91,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
 
   it should "handle simple memory response" in {
 
-    test(new AuctionDRAMController(ap, mp)).withAnnotations(verilator) { c =>
+    test(new AuctionDRAMController(ap)).withAnnotations(verilator) { c =>
       initClocks(c)
 
       c.ioCtrl.requestedAgents.ready.poke(true.B)
@@ -139,7 +136,7 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
   }
   it should "handle comples memory response" in {
 
-    test(new AuctionDRAMController(ap, mp)).withAnnotations(verilator) { c =>
+    test(new AuctionDRAMController(ap)).withAnnotations(verilator) { c =>
       initClocks(c)
 
       c.ioCtrl.requestedAgents.ready.poke(true.B)
@@ -211,14 +208,11 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
 
 
   it should "generate unaligned mem access" in {
-    object ap extends AuctionParams {
-      val nPEs = 4
-      val bitWidth = 16
-      val memWidth = 64
-      val maxProblemSize = 64
-    }
+    val ap = new MemCtrlParams(
+      nPEs = 4, bitWidth = 16, mrp = mp, maxProblemSize = 64
+    )
 
-    test(new AuctionDRAMController(ap, mp)) { c =>
+    test(new AuctionDRAMController(ap)) { c =>
       initClocks(c)
 
       // Request 8x8bit words starting from address 0
@@ -249,14 +243,11 @@ class TestMemoryController extends FlatSpec with ChiselScalatestTester with Matc
   }
 
     it should "generate unaligned mem access2" in {
-      object ap extends AuctionParams {
-        val nPEs = 4
-        val bitWidth = 16
-        val memWidth = 64
-        val maxProblemSize = 64
-      }
+      val ap = new MemCtrlParams(
+        nPEs = 4, bitWidth = 16, mrp=mp, maxProblemSize = 64
+      )
 
-      test(new AuctionDRAMController(ap, mp)) { c =>
+      test(new AuctionDRAMController(ap)) { c =>
         initClocks(c)
 
         // Request 8x8bit words starting from address 0

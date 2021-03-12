@@ -6,12 +6,12 @@ import chisel3.util._
 
 // The search tasks takes in one net benefit at the time and calculates the
 // total highest, its index and its bid which is passed along to next node
-class SearchTaskResult(private val ap: AuctionParams) extends Bundle {
+class SearchTaskResult(private val ap: SearchTaskParams) extends Bundle {
   val winner = UInt(ap.agentWidth.W)
   val bid = UInt(ap.bitWidth.W)
 }
 
-class SearchTaskIO(ap: AuctionParams) extends Bundle {
+class SearchTaskIO(ap: SearchTaskParams) extends Bundle {
   val benefitIn = Flipped(Decoupled(UInt(ap.bitWidth.W)))
   val resultOut = Decoupled(new SearchTaskResult(ap))
 
@@ -22,7 +22,7 @@ class SearchTaskIO(ap: AuctionParams) extends Bundle {
     resultOut.bits.bid := 0.U
   }
 }
-class SearchTask(ap: AuctionParams) extends MultiIOModule {
+class SearchTask(ap: SearchTaskParams) extends MultiIOModule {
   val io = IO(new SearchTaskIO(ap))
   val regCurrentBest = RegInit(0.U(ap.bitWidth.W))
   val regCurrentNextBest = RegInit(0.U(ap.bitWidth.W))

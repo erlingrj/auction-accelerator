@@ -3,22 +3,45 @@ import chisel3._
 import chisel3.util._
 import fpgatidbits.dma.MemReqParams
 
+import fpgatidbits.synthutils.PrintableParam
 // The controller monitors the Register file and sets up the initial queues for the problem
 // It monitors the communication between Accountant and MemoryController and figures out when we are done
 // It signals the Accountant to write all data to memory and then updates reg file with info that we are done
 
+class ControllerParams(
+  val bitWidth: Int,
+  val nPEs: Int,
+  val mrp: MemReqParams,
+  val maxProblemSize: Int
+) extends PrintableParam {
+
+  override def headersAsList(): List[String] = {
+    List(
+
+    )
+  }
+
+  override def contentAsList(): List[String] = {
+    List(
+
+    )
+  }
+  def agentWidth = log2Ceil(maxProblemSize)
+}
 
 
-class ControllerIO(ap: AuctionParams, mp: MemReqParams) extends Bundle {
+class ControllerIO(ap: ControllerParams) extends Bundle {
 
   val rfCtrl  = new AppControlSignals()
   val rfInfo = new AppInfoSignals()
 
-  val unassignedAgentsIn = Flipped(Decoupled(new AgentInfo(ap,mp)))
-  val unassignedAgentsOut = Decoupled(new AgentInfo(ap,mp))
 
-  val requestedAgentsIn = Flipped(Decoupled(new AgentInfo(ap,mp)))
-  val requestedAgentsOut = Decoupled(new AgentInfo(ap,mp))
+
+  val unassignedAgentsIn = Flipped(Decoupled(new AgentInfo(ap.bitWidth)))
+  val unassignedAgentsOut = Decoupled(new AgentInfo(ap.bitWidth))
+
+  val requestedAgentsIn = Flipped(Decoupled(new AgentInfo(ap.bitWidth)))
+  val requestedAgentsOut = Decoupled(new AgentInfo(ap.bitWidth))
 
   val doWriteBack = Output(Bool())
   val writeBackDone = Input(Bool())
@@ -37,8 +60,8 @@ class ControllerIO(ap: AuctionParams, mp: MemReqParams) extends Bundle {
 }
 
 
-class Controller(ap: AuctionParams, mp: MemReqParams) extends Module {
-  val io = IO(new ControllerIO(ap, mp))
+class Controller(ap: ControllerParams) extends Module {
+  val io = IO(new ControllerIO(ap))
   io.driveDefaults()
 
   val constBackDownCount = 10

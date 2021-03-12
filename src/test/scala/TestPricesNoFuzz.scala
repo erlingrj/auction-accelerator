@@ -9,12 +9,9 @@ import chisel3._
 class TestPricesNoFuzz extends FlatSpec with ChiselScalatestTester with Matchers {
 
 
-  object AuctionTestParams extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 32
-    val memWidth = 32
-    val maxProblemSize = 8
-  }
+  val ap = new AuctionParams(
+    nPEs = 4, bitWidth = 32, memWidth = 32, maxProblemSize = 8
+  )
 
   def initClocks(c: PricesNoFuzz): Unit = {
     c.io.peResps.map(_.initSink().setSinkClock(c.clock))
@@ -23,7 +20,7 @@ class TestPricesNoFuzz extends FlatSpec with ChiselScalatestTester with Matchers
   }
   behavior of "PricesNoFuzz"
   it should "Initialize correctly" in {
-    test(new PricesNoFuzz(AuctionTestParams)) { c =>
+    test(new PricesNoFuzz(ap)) { c =>
       c.io.peReqs.map(_.ready.expect(true.B))
       c.io.priceUpdate.ready.expect(false.B)
       c.io.peResps.map(_.valid.expect(false.B))
@@ -31,7 +28,7 @@ class TestPricesNoFuzz extends FlatSpec with ChiselScalatestTester with Matchers
   }
 
   it should "Give prices and block" in {
-    test(new PricesNoFuzz(AuctionTestParams)) { c =>
+    test(new PricesNoFuzz(ap)) { c =>
       initClocks(c)
 
       fork {

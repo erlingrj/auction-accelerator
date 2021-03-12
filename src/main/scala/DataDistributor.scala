@@ -2,21 +2,47 @@ package auction
 
 import chisel3._
 import chisel3.util._
+import fpgatidbits.dma.MemReqParams
+import fpgatidbits.synthutils.PrintableParam
 
-class MemData(private val ap: AuctionParams) extends Bundle {
+class DataDistributorParams(
+  val bitWidth: Int,
+  val memWidth: Int,
+  val nPEs: Int,
+  val maxProblemSize: Int
+) extends PrintableParam {
+
+  override def headersAsList(): List[String] = {
+    List(
+
+    )
+  }
+
+  override def contentAsList(): List[String] = {
+    List(
+
+    )
+  }
+  def agentWidth = log2Ceil(maxProblemSize)
+}
+class MemData(val ap: DataDistributorParams) extends Bundle {
   val data = UInt(ap.memWidth.W)
   val mask = UInt((ap.memWidth/ap.bitWidth).W)
   val last = Bool()
 }
 
-class DataDistributorIO(private val ap: AuctionParams) extends Bundle {
+class DataDistributorIO(private val ap: DataDistributorParams) extends Bundle {
   val mem = Flipped(Decoupled(new MemData(ap)))
-  val peOut = Vec(ap.nPEs, Decoupled(new PERewardIO(ap)))
+  val peP = new ProcessingElementParams(bitWidth = ap.bitWidth,
+    maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs
+  )
+
+  val peOut = Vec(ap.nPEs, Decoupled(new PERewardIO(peP)))
 }
 
 // DD Par UnOrdered. This one also accepts a mask from the mem-response
 //  this way it can support problem sizes which exceed the nPEs
-class DataDistributorParUnO(ap: AuctionParams) extends MultiIOModule {
+class DataDistributorParUnO(ap: DataDistributorParams) extends MultiIOModule {
   val io = IO(new DataDistributorIO(ap))
 
   require(ap.memWidth % ap.bitWidth == 0, "[DD] Aligned mem access only")
@@ -40,7 +66,7 @@ class DataDistributorParUnO(ap: AuctionParams) extends MultiIOModule {
   })
 }
 
-class DataDistributorReducer(ap: AuctionParams) extends Bundle {
+class DataDistributorReducer(ap: DataDistributorParams) extends Bundle {
 
 }
 /*

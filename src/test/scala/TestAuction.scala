@@ -9,12 +9,9 @@ import fpgatidbits.PlatformWrapper.GenericAccelImplicits._
 
 class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
 
-  object ap extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 16
-    val memWidth = 64
-    val maxProblemSize = 8
-  }
+  val ap = new AuctionParams(
+    nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 8
+  )
 
   val rewMatBig: Seq[Seq[Long]]= Seq(
     Seq(7,   51,  52,  87, 38,  60,  74,  66,   0,  20),
@@ -157,12 +154,9 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
   it should "10x10 with 8PEs" in {
-    object ap extends AuctionParams {
-      val nPEs = 8
-      val bitWidth = 8
-      val memWidth = 64
-      val maxProblemSize = 16
-    }
+    val ap = new AuctionParams(
+      nPEs = 8, bitWidth = 8, memWidth = 64, maxProblemSize = 16
+    )
 
     test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
       val nAgents = 10
@@ -199,12 +193,9 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
     it should "10x10 with 4PEs" in {
-      object ap extends AuctionParams {
-        val nPEs = 4
-        val bitWidth = 16
-        val memWidth = 64
-        val maxProblemSize = 16
-      }
+      val ap = new AuctionParams(
+        nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 16
+      )
 
       test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
         val nAgents = 10
