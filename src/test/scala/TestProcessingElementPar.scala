@@ -8,17 +8,14 @@ import chisel3._
 
 class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with Matchers {
 
+  val ap = new ProcessingElementParams(
+    nPEs = 4, bitWidth = 32, maxProblemSize = 8
+  )
 
-  object AuctionTestParams extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 32
-    val memWidth = 32
-    val maxProblemSize = 8
-  }
 
   behavior of "ProcessingElementPar"
   it should "Initialize correctly" in {
-    test(new ProcessingElementPar(AuctionTestParams, 0)) { c =>
+    test(new ProcessingElementPar(ap, 0)) { c =>
       // c.regState.expect(c.sIdle)
       // c.regReward.expect(0.U)
       // c.regPrice.expect(0.U)
@@ -32,7 +29,7 @@ class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with 
   }
 
   it should "Calculate single benefit" in {
-    test(new ProcessingElementPar(AuctionTestParams, 0)) { c =>
+    test(new ProcessingElementPar(ap, 0)) { c =>
     //  c.io.controlIn.initSource.setSourceClock(c.clock)
       c.io.rewardIn.initSource.setSourceClock(c.clock)
       c.io.PEResultOut.initSink().setSinkClock(c.clock)
@@ -45,7 +42,7 @@ class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with 
   }
 
   it should "Handle negative benefit" in {
-    test(new ProcessingElementPar(AuctionTestParams, 0)) { c =>
+    test(new ProcessingElementPar(ap, 0)) { c =>
       c.io.controlIn.initSource.setSourceClock(c.clock)
       c.io.rewardIn.initSource.setSourceClock(c.clock)
       c.io.PEResultOut.initSink().setSinkClock(c.clock)
@@ -62,7 +59,7 @@ class TestProcessingElementPar extends FlatSpec with ChiselScalatestTester with 
   }
 
   it should "Handle multiple rounds" in {
-    test(new ProcessingElementPar(AuctionTestParams, 3)) { c =>
+    test(new ProcessingElementPar(ap, 3)) { c =>
       c.io.controlIn.initSource.setSourceClock(c.clock)
       c.io.rewardIn.initSource.setSourceClock(c.clock)
       c.io.PEResultOut.initSink().setSinkClock(c.clock)

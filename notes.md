@@ -13,6 +13,17 @@ The first is a parallell processing parallell Search the second is sequential an
 
 
 ## Log
+## March 12: Run
+- A really small variant of the accelerator with 8PEs runs on the ZedBoard with 100MHz (I think) clock.
+- I have spent HOURS trying to execute a simple shell command in Scala using the environmental variables
+- Should checkout Rosetta-code for fast deployment on the PYNQ. Also I need to synthesis the Vivado project making
+and the synthesis of the project. Use good ol TCL?
+- OPS: The accelerator only works a single time, so probably it doesnt reset like it should
+
+## March 11: Build
+- Setting up build and characterize flow using oh-my-xilinx
+- should probably download and install oh-my-xilinx properly.
+
 ## March 8: Memory integratio work better
 - Unaligned memory access now works.
 - Need to test more with multiple rounds.

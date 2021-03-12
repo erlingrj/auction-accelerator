@@ -5,7 +5,32 @@ import chisel3.util._
 import fpgatidbits.PlatformWrapper._
 import fpgatidbits.dma._
 import fpgatidbits.streams._
+import fpgatidbits.synthutils.PrintableParam
 
+
+
+class AuctionParams(
+                   val nPEs: Int,
+                   val bitWidth: Int,
+                   val maxProblemSize: Int,
+                   val memWidth: Int
+                   ) extends PrintableParam
+{
+  def headersAsList(): List[String] = {
+    List(
+      "nPEs", "bitWidth", "maxProblemSize", "memWidth"
+    )
+  }
+
+  def contentAsList(): List[String] = {
+    List(nPEs, bitWidth, maxProblemSize, memWidth).map(_.toString)
+  }
+
+  def agentWidth: Int = log2Ceil(maxProblemSize)
+  def pricesPerPE: Int = maxProblemSize/nPEs
+  def pricesPerPEWidth: Int = log2Ceil(pricesPerPE)
+}
+/*
 trait AuctionParams {
   def nPEs : Int
   def bitWidth: Int
@@ -16,6 +41,8 @@ trait AuctionParams {
   def pricesPerPE: Int = maxProblemSize/nPEs
   def pricesPerPEWidth: Int = log2Ceil(pricesPerPE)
 }
+*/
+
 
 class AppControlSignals extends Bundle {
   val finished = Output(Bool())
@@ -48,14 +75,29 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
     maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = true
   )
   // Create all the submodules
-  val memController = Module(new AuctionDRAMController(ap,mp))
-  val controller = Module(new Controller(ap,mp))
-  val accountant = Module(new AccountantNonPipelined(ap,mp))
-  val dataMux = Module(new DataDistributorParUnO(ap))
+  val mcP = new MemCtrlParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+    nPEs = ap.nPEs, mrp = mp
+  )
+  val memController = Module(new AuctionDRAMController(mcP))
+
+  val cP = new ControllerParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+    nPEs = ap.nPEs, mrp = mp
+  )
+  val controller = Module(new Controller(cP))
+
+  val aP = new AccountantParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+    nPEs = ap.nPEs, mrp = mp
+  )
+  val accountant = Module(new AccountantNonPipelined(aP))
+
+  val ddP = new DataDistributorParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+    nPEs = ap.nPEs, memWidth = mp.dataWidth
+  )
+  val dataMux = Module(new DataDistributorParUnO(ddP))
 
   // create some queues
-  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=16))
-  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap,mp), entries=16))
+  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
+  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
 
 
 
@@ -78,10 +120,18 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   memWriter.io.byteCount := io.rfIn.nObjects*(8*2).U //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
   accountant.io.writeBackStream.finished := memWriter.io.finished
 
+  val peP = new ProcessingElementParams(
+    bitWidth = ap.bitWidth, nPEs = ap.nPEs, maxProblemSize = ap.maxProblemSize
+  )
+
   val pes = for (i <- 0 until ap.nPEs) yield {
-    Module(new ProcessingElementPar(ap,i))
+    Module(new ProcessingElementPar(peP,i))
   }
-  val search = Module(new SearchTaskPar(ap))
+
+  val stP = new SearchTaskParams(
+    bitWidth = ap.bitWidth, nPEs = ap.nPEs, maxProblemSize = ap.maxProblemSize
+  )
+  val search = Module(new SearchTaskPar(stP))
 
   memController.ioMem.req <> io.memPort(0).memRdReq
   memController.ioMem.rsp <> io.memPort(0).memRdRsp

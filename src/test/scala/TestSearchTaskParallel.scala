@@ -9,13 +9,10 @@ import fpgatidbits.dma._
 
 class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matchers {
 
+  val ap = new SearchTaskParams(
+    nPEs = 4, bitWidth = 8, maxProblemSize = 16
+  )
 
-  object AuctionTestParams extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 32
-    val memWidth = 32
-    val maxProblemSize = 8
-  }
 
 
   def enqueueRound(c: SearchTaskPar, benefits: Seq[Int], ids: Seq[Int], tLast: Boolean): Unit = {
@@ -34,14 +31,14 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
 
   behavior of "SearchTaskPar"
   it should "Initialize correctly" in {
-    test(new SearchTaskPar(AuctionTestParams)) { c =>
+    test(new SearchTaskPar(ap)) { c =>
       c.io.benefitIn.map(_.ready.expect(true.B))
       c.io.resultOut.valid.expect(false.B)
     }
   }
 
   it should "Find highest value" in {
-    test(new SearchTaskPar(AuctionTestParams)) { c =>
+    test(new SearchTaskPar(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
@@ -62,7 +59,7 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
   }
 
   it should "Find highest value with tie" in {
-    test(new SearchTaskPar(AuctionTestParams)) { c =>
+    test(new SearchTaskPar(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
@@ -84,7 +81,7 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
 
   it should "Find highest value over multiple rounds" in {
 
-    test(new SearchTaskPar(AuctionTestParams)) { c =>
+    test(new SearchTaskPar(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
@@ -122,7 +119,7 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
     }
   }
   it should "correct bid on all zeros input" in {
-    test(new SearchTaskPar(AuctionTestParams)) { c =>
+    test(new SearchTaskPar(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
 
@@ -140,7 +137,7 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
   }
 
   it should "Find highest value with zero benefit" in {
-    test(new SearchTaskPar(AuctionTestParams)) { c =>
+    test(new SearchTaskPar(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
@@ -160,7 +157,7 @@ class TestSearchTaskPar extends FlatSpec with ChiselScalatestTester with Matcher
     }
   }
   it should "solve two consecutive problems" in {
-    test(new SearchTaskPar(AuctionTestParams)) { c =>
+    test(new SearchTaskPar(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {

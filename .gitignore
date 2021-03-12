@@ -2,6 +2,14 @@
 test_run_dir/*
 ### XilinxISE template
 # intermediate build files
+verilator/
+verilog
+vitis
+vivado
+build*
+char
+
+
 *.bgn
 *.bit
 *.bld

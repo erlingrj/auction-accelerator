@@ -21,8 +21,11 @@ class StreamReaderControlSignals extends Bundle {
 
 }
 
-class AuctionControllerIO(ap: AuctionParams) extends Bundle {
-  val searchResultIn = Flipped(Decoupled(new SearchTaskResult(ap)))
+class AuctionControllerIO(ap: AccountantParams) extends Bundle {
+  val stP = new SearchTaskParams(
+    bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs
+  )
+  val searchResultIn = Flipped(Decoupled(new SearchTaskResult(stP)))
   val streamReaderCtrlSignals = Flipped(new StreamReaderControlSignals)
   val pricesOut = Vec(ap.nPEs, Decoupled(UInt(ap.bitWidth.W)))
   val start = Input(Bool())
@@ -46,7 +49,7 @@ class AuctionControllerIO(ap: AuctionParams) extends Bundle {
 }
 
 
-class AuctionController(ap: AuctionParams) extends MultiIOModule {
+class AuctionController(ap: AccountantParams) extends MultiIOModule {
   val io = IO(new AuctionControllerIO(ap))
   io.driveDefaults
 

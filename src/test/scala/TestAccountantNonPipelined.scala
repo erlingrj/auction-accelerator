@@ -13,12 +13,10 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
 
   val verilator = Seq(VerilatorBackendAnnotation)
 
-  object ap extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 8
-    val memWidth = 64
-    val maxProblemSize = 16
-  }
+  val mp = new MemReqParams(32, 64, 6, 1, true)
+  val ap = new AccountantParams(
+    nPEs = 4, bitWidth = 8, mrp=mp, maxProblemSize = 16
+  )
 
   def initClocks(c: Accountant): Unit = {
     c.io.searchResultIn.initSource().setSourceClock(c.clock)
@@ -50,18 +48,17 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
       }.join()
   }
 
-  val mp = new MemReqParams(32, 64, 6, 1, true)
   behavior of "AccountantNonPipelined"
 
   it should "Initialize correctly" in {
-    test(new AccountantNonPipelined(ap, mp)) { c =>
+    test(new AccountantNonPipelined(ap)) { c =>
       c.io.unassignedAgents.valid.expect(false.B)
       c.io.PEControlOut.map(_.bits.prices.map(_.expect(0.U)))
     }
   }
 
   it should "update price correctly" in {
-    test(new AccountantNonPipelined(ap, mp)) { c =>
+    test(new AccountantNonPipelined(ap)) { c =>
       initClocks(c)
       c.io.unassignedAgents.ready.poke(true.B)
       mockAssignment(c, agent=5, obj=6, bid=10)
@@ -71,7 +68,7 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
   }
 
   it should "evict old agent and fire memory request" in {
-    test(new AccountantNonPipelined(ap, mp)) { c =>
+    test(new AccountantNonPipelined(ap)) { c =>
       initClocks(c)
       c.io.rfInfo.nObjects.poke(8.U)
       fork {
@@ -90,7 +87,7 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
 
   it should "writeback correct prices" in {
 
-    test(new AccountantNonPipelined(ap, mp)) { c =>
+    test(new AccountantNonPipelined(ap)) { c =>
       initClocks(c)
       initRF(c)
       c.io.unassignedAgents.ready.poke(true.B)
@@ -111,7 +108,7 @@ class TestAccountantNonPipelined extends FlatSpec with ChiselScalatestTester wit
   }
 
   it should "not schedule new unassigned" in {
-    test(new AccountantNonPipelined(ap, mp)) { c =>
+    test(new AccountantNonPipelined(ap)) { c =>
       initClocks(c)
       initRF(c)
       c.io.unassignedAgents.ready.poke(true.B)

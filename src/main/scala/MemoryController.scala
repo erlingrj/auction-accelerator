@@ -4,9 +4,32 @@ import chisel3._
 import chisel3.util._
 import fpgatidbits.dma._
 import fpgatidbits.streams.ReadRespFilter
+import fpgatidbits.synthutils.PrintableParam
 
 
-class MemoryIO(private val ap: AuctionParams, private val mp: MemReqParams) extends Bundle {
+class MemCtrlParams(
+  val bitWidth: Int,
+  val nPEs: Int,
+  val mrp: MemReqParams,
+  val maxProblemSize: Int
+) extends PrintableParam {
+
+  override def headersAsList(): List[String] = {
+    List(
+
+    )
+  }
+
+  override def contentAsList(): List[String] = {
+    List(
+
+    )
+  }
+  def agentWidth = log2Ceil(maxProblemSize)
+}
+
+
+class MemoryIO(val mp: MemReqParams) extends Bundle {
   // I/O towards the memory
   val req = Decoupled(new GenericMemoryRequest(mp))
   val rsp = Flipped(Decoupled(new GenericMemoryResponse(mp)))
@@ -18,27 +41,36 @@ class MemoryIO(private val ap: AuctionParams, private val mp: MemReqParams) exte
   }
 }
 
-class AgentInfo(private val ap: AuctionParams, private val mp: MemReqParams) extends Bundle {
-  val agent = UInt(ap.agentWidth.W)
-  val nObjects = UInt(ap.agentWidth.W)
+class AgentInfo(val agentWidth: Int) extends Bundle {
+  val agent = UInt(agentWidth.W)
+  val nObjects = UInt(agentWidth.W)
 }
 
-class MemoryCtrlIO(ap: AuctionParams, mp: MemReqParams) extends Bundle {
+
+
+class MemoryCtrlIO(ap: MemCtrlParams) extends Bundle {
   // Control-inputs this is where AuctionController adds the unassigned agents
-  val unassignedAgents = Flipped(Decoupled(new AgentInfo(ap,mp)))
+  val unassignedAgents = Flipped(Decoupled(new AgentInfo(ap.agentWidth)))
 
   //  Control-outputs
   // memData goes to the datadistributor
-  val memData = Decoupled(new MemData(ap))
+  val ddP = new DataDistributorParams(
+    bitWidth = ap.bitWidth,
+    maxProblemSize = ap.maxProblemSize,
+    nPEs = ap.nPEs,
+    memWidth = ap.mrp.dataWidth
+  )
+
+  val memData = Decoupled(new MemData(ddP))
   // RequestedAgents Goes back to AuctionController which dequeues one after the other
-  val requestedAgents = Decoupled(new AgentInfo(ap,mp))
+  val requestedAgents = Decoupled(new AgentInfo(ap.agentWidth))
 
   // appCtrl is connected to the regfil
   val regFile = new AppInfoSignals()
 
   def driveDefaults = {
     memData.valid := false.B
-    memData.bits := 0.U.asTypeOf(new MemData(ap))
+    memData.bits := 0.U.asTypeOf(new MemData(ddP))
     unassignedAgents.ready := false.B
     requestedAgents.valid := false.B
     requestedAgents.bits := DontCare
@@ -46,11 +78,11 @@ class MemoryCtrlIO(ap: AuctionParams, mp: MemReqParams) extends Bundle {
 }
 
 // Abstract base class for the Auction Memory Controller
-abstract class MemoryController(ap: AuctionParams,mp: MemReqParams) extends MultiIOModule {
-  val ioMem = IO(new MemoryIO(ap,mp))
-  val ioCtrl = IO(new MemoryCtrlIO(ap,mp))
+abstract class MemoryController(ap: MemCtrlParams) extends MultiIOModule {
+  val ioMem = IO(new MemoryIO(ap.mrp))
+  val ioCtrl = IO(new MemoryCtrlIO(ap))
 
-  val constWordsPerRequst = mp.dataWidth / ap.bitWidth
+  val constWordsPerRequst = ap.mrp.dataWidth / ap.bitWidth
 
   require(ap.bitWidth >= 8)
   val constBytesPerValue = (ap.bitWidth/8).U
@@ -63,10 +95,10 @@ abstract class MemoryController(ap: AuctionParams,mp: MemReqParams) extends Mult
   // This function rounds up the number of bytes so we get alligned memory accesses
   //  This should probably be improved for performance
   def roundUpBytes(bytes: UInt): UInt = {
-    val alignTo = mp.dataWidth/8 //we can only access individual bytes
-    val alignToMask = (alignTo-1).U(mp.dataWidth.W)
+    val alignTo = ap.mrp.dataWidth/8 //we can only access individual bytes
+    val alignToMask = (alignTo-1).U(ap.mrp.dataWidth.W)
 
-    val result = WireInit(0.U(mp.dataWidth.W))
+    val result = WireInit(0.U(ap.mrp.dataWidth.W))
 
     when((bytes & alignToMask) === 0.U) {
       result := bytes
@@ -91,16 +123,15 @@ abstract class MemoryController(ap: AuctionParams,mp: MemReqParams) extends Mult
 
 // First iteration of memory controller. Just using the DRAM on the Zynq
 class AuctionDRAMController(
-                           ap: AuctionParams,
-                           mp: MemReqParams
-                           ) extends MemoryController(ap,mp)
+  ap: MemCtrlParams
+                           ) extends MemoryController(ap)
 {
   // drive defaults
   ioCtrl.driveDefaults
   ioMem.driveDefaults
 
   // read request generator
-  val rg = Module(new ReadReqGen(mp, chanID=0, maxBeats=1))
+  val rg = Module(new ReadReqGen(ap.mrp, chanID=0, maxBeats=1))
   ioMem.req <> rg.io.reqs
   rg.io.ctrl.throttle := DontCare
   rg.io.ctrl.baseAddr := DontCare
@@ -108,7 +139,7 @@ class AuctionDRAMController(
   rg.io.ctrl.byteCount := DontCare
 
   // Queue for memory responsens
-  val qMemRsp = Module(new Queue(new GenericMemoryResponse(mp), 8)).io
+  val qMemRsp = Module(new Queue(new GenericMemoryResponse(ap.mrp), 8)).io
   qMemRsp.enq <> ioMem.rsp
   qMemRsp.deq.ready := false.B // INitialize to false
   // No errors
@@ -148,11 +179,11 @@ class AuctionDRAMController(
         ioCtrl.memData.bits.data := qMemRsp.deq.bits.readData
 
         when (regNumWordsLeft > constWordsPerRequst.U) {
-          ioCtrl.memData.bits.mask := ~(0.U(ap.memWidth.W))
+          ioCtrl.memData.bits.mask := ~(0.U(ap.mrp.dataWidth.W))
           ioCtrl.memData.bits.last := false.B
           regNumWordsLeft := regNumWordsLeft - constWordsPerRequst.U
         }.elsewhen(regNumWordsLeft === constWordsPerRequst.U) {
-          ioCtrl.memData.bits.mask := ~(0.U(ap.memWidth.W))
+          ioCtrl.memData.bits.mask := ~(0.U(ap.mrp.dataWidth.W))
           ioCtrl.memData.bits.last := true.B
           regNumWordsLeft := 0.U
           regState := sIdle

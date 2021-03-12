@@ -3,23 +3,47 @@ package auction
 import chisel3._
 import chisel3.util._
 
+import fpgatidbits.synthutils.PrintableParam
+
+class ProcessingElementParams(
+  val bitWidth: Int,
+  val nPEs: Int,
+  val maxProblemSize: Int
+) extends PrintableParam {
+
+  override def headersAsList(): List[String] = {
+    List(
+
+    )
+  }
+
+  override def contentAsList(): List[String] = {
+    List(
+
+    )
+  }
+  def agentWidth = log2Ceil(maxProblemSize)
+}
 // ProcessingElements do the processing (subtraction) and calculates the net benefit
 // ProcessingElementPar is the "paralell" implementation
 
-class PEControl(private val ap: AuctionParams) extends Bundle {
+class PEControl(private val ap: ProcessingElementParams) extends Bundle {
   val prices = Vec(ap.maxProblemSize/ap.nPEs, UInt(ap.bitWidth.W))
 }
 
-class PERewardIO(private val ap: AuctionParams) extends Bundle {
+class PERewardIO(private val ap: ProcessingElementParams) extends Bundle {
   val reward = UInt(ap.bitWidth.W)
   val last = Bool()
 }
 
-class ProcessingElementParIO(ap: AuctionParams) extends Bundle {
+class ProcessingElementParIO(ap: ProcessingElementParams) extends Bundle {
 
   val controlIn = Flipped(Decoupled(new PEControl(ap)))
   val rewardIn = Flipped(Decoupled(new PERewardIO(ap)))
-  val PEResultOut = Decoupled(new PEResult(ap))
+  val stP = new SearchTaskParams(
+    bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs
+  )
+  val PEResultOut = Decoupled(new PEResult(stP))
 
   def driveDefaults() = {
     PEResultOut.valid := false.B
@@ -29,7 +53,7 @@ class ProcessingElementParIO(ap: AuctionParams) extends Bundle {
   }
 }
 
-class ProcessingElementPar(ap: AuctionParams, id: Int) extends MultiIOModule {
+class ProcessingElementPar(ap: ProcessingElementParams, id: Int) extends MultiIOModule {
   val io = IO(new ProcessingElementParIO(ap))
 
   def getId(idx: UInt): UInt = {

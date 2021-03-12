@@ -5,15 +5,13 @@ import org.scalatest._
 import chiseltest._
 import chisel3._
 import chisel3.experimental.BundleLiterals._
+import fpgatidbits.dma.MemReqParams
 
 class TestDataDistributorParUnO extends FlatSpec with ChiselScalatestTester with Matchers {
 
-  object ap1 extends AuctionParams {
-    val nPEs = 1
-    val bitWidth = 32
-    val memWidth = 32
-    val maxProblemSize = 8
-  }
+  val ap1 = new DataDistributorParams(
+    nPEs = 1, bitWidth = 32, memWidth = 32, maxProblemSize = 16
+  )
 
   behavior of "DataDistributorParUnO"
   it should "Initialize read/valid interfaces correctly" in {
@@ -48,12 +46,9 @@ class TestDataDistributorParUnO extends FlatSpec with ChiselScalatestTester with
   }
 
 
-  object ap2 extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 8
-    val memWidth = 32
-    val maxProblemSize = 8
-  }
+  val ap2 = new DataDistributorParams(
+    nPEs = 4, bitWidth = 8, memWidth = 32,maxProblemSize = 8
+  )
 
   it should "Pass a stream of data out correctly" in {
     test(new DataDistributorParUnO(ap2)) { c =>

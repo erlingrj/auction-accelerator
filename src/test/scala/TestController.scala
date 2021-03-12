@@ -13,12 +13,6 @@ class TestController extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val verilator = Seq(VerilatorBackendAnnotation)
 
-  object ap extends AuctionParams {
-    val nPEs = 4
-    val bitWidth = 8
-    val memWidth = 64
-    val maxProblemSize = 100
-  }
 
   def initClocks(c: Controller): Unit = {
     c.io.requestedAgentsOut.initSink().setSinkClock(c.clock)
@@ -28,10 +22,13 @@ class TestController extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   val mp = new MemReqParams(32, 64, 6, 1, true)
+  val ap = new ControllerParams(
+    nPEs = 4, bitWidth = 8, mrp = mp, maxProblemSize = 100
+  )
   behavior of "Controller"
 
   it should "Initialize correctly" in {
-    test(new Controller(ap, mp)) { c =>
+    test(new Controller(ap)) { c =>
       c.io.unassignedAgentsOut.valid.expect(false.B)
       c.io.requestedAgentsOut.valid.expect(false.B)
       c.io.doWriteBack.expect(false.B)
@@ -42,7 +39,7 @@ class TestController extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   it should "pass memoryRequested through" in {
-    test(new Controller(ap, mp)) { c =>
+    test(new Controller(ap)) { c =>
       initClocks(c)
       fork {
         c.io.requestedAgentsIn.enqueueNow(
@@ -63,7 +60,7 @@ class TestController extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   it should "generate first set of mem reqs" in {
-    test(new Controller(ap, mp)) { c =>
+    test(new Controller(ap)) { c =>
       initClocks(c)
       val nAgents = 90
       val nObjects = 70

@@ -2,20 +2,41 @@ package auction
 
 import chisel3._
 import chisel3.util._
+import fpgatidbits.synthutils.PrintableParam
 
-class SearchTaskResultPar(private val ap: AuctionParams) extends Bundle {
+class SearchTaskParams(
+  val bitWidth: Int,
+  val nPEs: Int,
+  val maxProblemSize: Int
+) extends PrintableParam {
+
+  override def headersAsList(): List[String] = {
+    List(
+
+    )
+  }
+
+  override def contentAsList(): List[String] = {
+    List(
+
+    )
+  }
+  def agentWidth = log2Ceil(maxProblemSize)
+}
+
+class SearchTaskResultPar(private val ap: SearchTaskParams) extends Bundle {
   val winner = UInt(ap.agentWidth.W)
   val bid = UInt(ap.bitWidth.W)
 }
 
-class PEResult(private val ap: AuctionParams) extends Bundle {
+class PEResult(private val ap: SearchTaskParams) extends Bundle {
   val benefit = UInt(ap.bitWidth.W)
   val id = UInt(ap.agentWidth.W)
   val last = Bool()
 }
 
 
-class SearchTaskParIO(ap: AuctionParams) extends Bundle {
+class SearchTaskParIO(ap: SearchTaskParams) extends Bundle {
   val benefitIn = Vec(ap.nPEs, Flipped(Decoupled(new PEResult(ap))))
   val resultOut = Decoupled(new SearchTaskResultPar(ap))
 
@@ -29,7 +50,7 @@ class SearchTaskParIO(ap: AuctionParams) extends Bundle {
 }
 
 // CompReg is the pipeline registers feeding into and out of the comparators
-class CompReg(ap: AuctionParams) extends Bundle {
+class CompReg(ap: SearchTaskParams) extends Bundle {
   val benefit = UInt((ap.bitWidth).W)
   val id = UInt(ap.agentWidth.W)
   val runningBid = UInt(ap.bitWidth.W)
@@ -38,7 +59,7 @@ class CompReg(ap: AuctionParams) extends Bundle {
 }
 
 
-class SearchTaskPar(ap: AuctionParams) extends MultiIOModule {
+class SearchTaskPar(ap: SearchTaskParams) extends MultiIOModule {
   require(ap.nPEs > 2)
 
   val io = IO(new SearchTaskParIO(ap))
