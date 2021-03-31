@@ -180,6 +180,8 @@ class AccountantNonPipelined(ap: AccountantParams)
           regPrices(regObject) := regBid
         }
          */
+      }.otherwise { // If the bid is 0 we drop this agent since there are no valid bids for him
+        regState := sWaitForBid
       }
     }
     is (sWriteBackAssignments)  {

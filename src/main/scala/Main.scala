@@ -10,7 +10,8 @@ import fpgatidbits.PlatformWrapper._
 import fpgatidbits.TidbitsMakeUtils
 import fpgatidbits.TidbitsMakeUtils.fileCopy
 import fpgatidbits.dma.MemReqParams
-import fpgatidbits.synthutils.VivadoSynth
+import fpgatidbits.ocm.{SimpleDualPortBRAM, SinglePortBRAM}
+import fpgatidbits.synthutils.{PrintableParam, VivadoSynth}
 
 // This is heavily inspired by the BISMO project by Yaman Urumgorou BSD License by NTNU
 
@@ -46,9 +47,12 @@ object ChiselMain {
     val p_nPEs: Int = args(2).toInt
     val p_bitWidth: Int = args(3).toInt
     val p_maxProblemSize: Int = args(4).toInt
+    val p_bramDataWidth: Int = args(5).toInt
+    val p_bramAddrWidth: Int = args(6).toInt
 
     val ap = new AuctionParams(
-      nPEs = p_nPEs, bitWidth = p_bitWidth, memWidth = 64, maxProblemSize = p_maxProblemSize
+      nPEs = p_nPEs, bitWidth = p_bitWidth, memWidth = 64, maxProblemSize = p_maxProblemSize,
+      bramAddrWidth = p_bramAddrWidth, bramDataWidth = p_bramDataWidth
     )
 
     val platformInst = TidbitsMakeUtils.platformMap(platformName)
@@ -64,11 +68,15 @@ object VerilatorMain {
     val p_nPEs: Int = args(1).toInt
     val p_bitWidth: Int = args(2).toInt
     val p_maxProblemSize: Int = args(3).toInt
+    val p_bramDataWidth: Int = args(5).toInt
+    val p_bramAddrWidth: Int = args(6).toInt
 
     val ap = new AuctionParams(
-      nPEs = 4, bitWidth = 8, memWidth = 64, maxProblemSize = 16
+      nPEs = p_nPEs, bitWidth = p_bitWidth, memWidth = 64, maxProblemSize = p_maxProblemSize,
+      bramAddrWidth = p_bramAddrWidth, bramDataWidth = p_bramDataWidth
     )
 
+    println(s"Writing verilator to ${targetDir}")
     val platformInst = {f => new VerilatedTesterWrapper(f, targetDir)}
     val accInst = Settings.makeInstFxn(ap)
     val verilogString = (new chisel3.stage.ChiselStage).emitVerilog(platformInst(accInst))
@@ -97,7 +105,7 @@ object CharacterizeMain {
   )
   val instFxn_MemoryController = {(ap: MemCtrlParams) => new AuctionDRAMController(ap)}
   val mcP = new MemCtrlParams(
-    bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
+    bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp, bramAddrWidth = 8, bramDataWidth = 512
   )
   val instFxn_SearchTask= {(ap: SearchTaskParams) => new SearchTaskPar(ap)}
   val stP = new SearchTaskParams(
@@ -112,6 +120,9 @@ object CharacterizeMain {
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )
 
+  // Just adding auctionParams there so it adheres to the needing a PrintableParam in
+  val instFxn_SinglePortBRAM= { (ap:AccountantParams) => new SinglePortBRAM(8,128)}
+  val instFxn_SimpleDualPortBRAM= { (ap:AccountantParams) => new SimpleDualPortBRAM(9,144)}
 
 
   def main(args: Array[String]): Unit = {
@@ -124,18 +135,21 @@ object CharacterizeMain {
     if (chName == "Accountant") {
       VivadoSynth.characterizePoint(aP, instFxn_Accountant, chPath, fpgaPart, "AccountantNonPipelined")
     }
-    else if (chName == "ProcessingElement") {
+    else if (chName == "CharacterizeProcessingElement") {
       VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementPar")
-    } else if (chName == "MemoryController") {
+    } else if (chName == "CharacterizeMemoryController") {
       VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "AuctionDRAMController")
-    } else if (chName == "SearchTask") {
+    } else if (chName == "CharacterizeSearchTask") {
       VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTaskPar")
-    } else if (chName == "DataDistributor") {
+    } else if (chName == "CharacterizeDataDistributor") {
       VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributorParUnO")
-    } else if (chName == "Controller") {
+    } else if (chName == "CharacterizeSimpleDualPortBRAM") {
+      VivadoSynth.characterizePoint(aP, instFxn_SimpleDualPortBRAM, chPath, fpgaPart, "SimpleDualPortBRAM")
+    } else if (chName == "CharacterizeSinglePortBRAM") {
+      VivadoSynth.characterizePoint(aP, instFxn_SinglePortBRAM, chPath, fpgaPart, "SinglePortBRAM")
+    } else if (chName == "CharacterizeController") {
       VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "Controller")
-    } else if (chName == "All") {
-
+    } else if (chName == "CharacterizeAll") {
       VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementPar")
       VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "AuctionDRAMController")
       VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTaskPar")

@@ -4,16 +4,19 @@ import chisel3._
 import chisel3.util._
 import fpgatidbits.PlatformWrapper._
 import fpgatidbits.dma._
+import fpgatidbits.ocm.SinglePortBRAM
 import fpgatidbits.streams._
 import fpgatidbits.synthutils.PrintableParam
 
 
 
 class AuctionParams(
-                   val nPEs: Int,
-                   val bitWidth: Int,
-                   val maxProblemSize: Int,
-                   val memWidth: Int
+  val nPEs: Int,
+  val bitWidth: Int,
+  val maxProblemSize: Int,
+  val memWidth: Int,
+  val bramDataWidth: Int = 512,
+  val bramAddrWidth: Int = 8
                    ) extends PrintableParam
 {
   def headersAsList(): List[String] = {
@@ -76,7 +79,7 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   )
   // Create all the submodules
   val mcP = new MemCtrlParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
-    nPEs = ap.nPEs, mrp = mp
+    nPEs = ap.nPEs, mrp = mp, bramAddrWidth = ap.bramAddrWidth, bramDataWidth = ap.bramDataWidth
   )
   val memController = Module(new AuctionDRAMController(mcP))
 
@@ -100,6 +103,8 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
 
 
+  // Memories
+  //val bram = Module(new SinglePortBRAM())
 
 
   val wrP = new StreamWriterParams(
@@ -108,7 +113,6 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
     chanID = 0,
     maxBeats = 1
   )
-
   val memWriter = Module(new StreamWriter(wrP))
   memWriter.io.req <> io.memPort(0).memWrReq
   memWriter.io.rsp <> io.memPort(0).memWrRsp
@@ -165,13 +169,19 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   controller.io.rfInfo := io.rfIn
   io.rfOut := controller.io.rfCtrl
 
-
+  val running = RegInit(false.B)
   val regCycleCount = RegInit(0.U(32.W))
   io.rfOut.cycleCount := regCycleCount
-  when(!io.rfIn.start) {
-    regCycleCount := 0.U
-  }.elsewhen(io.rfIn.start & !io.rfOut.finished) {
+  when(running) {
     regCycleCount := regCycleCount + 1.U
+  }.elsewhen(!running && io.rfIn.start) {
+    regCycleCount := 0.U
+  }
+
+  when(!running) {
+    running := io.rfIn.start
+  } otherwise {
+    running := !controller.io.rfCtrl.finished
   }
 }
 
