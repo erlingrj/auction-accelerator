@@ -1,3 +1,6 @@
 [submodule "fpga-tidbits"]
 	path = fpga-tidbits
 	url = https://github.com/erlingrj/fpga-tidbits.git
+[submodule "auction-hw-driver"]
+    path =auction-hw-driver
+    url = https://github.com/erlingrj/auction-hw-driver.git

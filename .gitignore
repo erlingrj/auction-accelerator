@@ -9,6 +9,9 @@ vivado
 build*
 char
 
+.json
+.fir
+
 
 *.bgn
 *.bit
