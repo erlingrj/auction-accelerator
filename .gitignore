@@ -8,6 +8,8 @@ vitis
 vivado
 build*
 char
+verilated/
+ZedBoard*
 
 .json
 .fir
