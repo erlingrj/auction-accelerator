@@ -28,7 +28,7 @@ object WrapAdd {
 // Takes input vector and a valids vector and outputs a compacted vector with the valids shifted down
 object Compactor {
   def apply[T <: Data](vIn: Vec[T], valids: Seq[Bool]): Vec[T] = {
-    val vOut = WireInit(VecInit(Seq.fill(vIn.length)(0.U.asTypeOf(new T))))
+    val vOut = WireInit(VecInit(Seq.fill(vIn.length)(0.U.asTypeOf(vIn(0)))))
     val idxs = WireInit(VecInit(Seq.fill(vIn.length)(0.U(log2Ceil(vIn.length).W))))
 
     for (i <- 0 until vIn.length) {
@@ -44,10 +44,12 @@ object Compactor {
           vOut(idxs(i-1)) := vIn(i)
           idxs(i) := idxs(i-1) + 1.U
         }.otherwise {
-          idxs(i) := idxs(i-i)
+          idxs(i) := idxs(i-1)
         }
       }
+
     }
+
     vOut
   }
 }
