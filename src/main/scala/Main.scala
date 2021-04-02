@@ -47,12 +47,9 @@ object ChiselMain {
     val p_nPEs: Int = args(2).toInt
     val p_bitWidth: Int = args(3).toInt
     val p_maxProblemSize: Int = args(4).toInt
-    val p_bramDataWidth: Int = args(5).toInt
-    val p_bramAddrWidth: Int = args(6).toInt
 
     val ap = new AuctionParams(
       nPEs = p_nPEs, bitWidth = p_bitWidth, memWidth = 64, maxProblemSize = p_maxProblemSize,
-      bramAddrWidth = p_bramAddrWidth, bramDataWidth = p_bramDataWidth
     )
 
     val platformInst = TidbitsMakeUtils.platformMap(platformName)
@@ -68,12 +65,9 @@ object VerilatorMain {
     val p_nPEs: Int = args(1).toInt
     val p_bitWidth: Int = args(2).toInt
     val p_maxProblemSize: Int = args(3).toInt
-    val p_bramDataWidth: Int = args(5).toInt
-    val p_bramAddrWidth: Int = args(6).toInt
 
     val ap = new AuctionParams(
       nPEs = p_nPEs, bitWidth = p_bitWidth, memWidth = 64, maxProblemSize = p_maxProblemSize,
-      bramAddrWidth = p_bramAddrWidth, bramDataWidth = p_bramDataWidth
     )
 
     println(s"Writing verilator to ${targetDir}")

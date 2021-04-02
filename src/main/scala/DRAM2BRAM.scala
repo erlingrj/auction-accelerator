@@ -9,14 +9,12 @@ import fpgatidbits.ocm.{FPGAQueue, OCMMasterIF}
 
 class BramLine(val mp: MemCtrlParams) extends Bundle {
   val els = Vec(mp.nPEs, new BramEl(mp))
-  val last = Bool()
-  val unused = if (mp.unusedBits > 0) UInt(mp.unusedBits.W) else null
 }
 
 
 class BramEl(val mp: MemCtrlParams) extends Bundle {
   val value = UInt(mp.bitWidth.W)
-  val col = UInt(log2Ceil(mp.maxProblemSize).W)
+  val col = UInt(mp.agentWidth.W)
   val last = Bool()
 }
 
@@ -86,11 +84,17 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
         b.value := dramRow((i + 1) * p.bitWidth - 1, i * p.bitWidth)
       }
     }
+    when(regBytesLeftInRow === regNBytesInRow) {
+      newRowStarted := true.B
+      regAgentRowCnt := regAgentRowCnt+1.U
+    }.otherwise {
+      newRowStarted := false.B
+    }
+
     when(regBytesLeftInRow > (64/p.bitWidth).U) {
       regBytesLeftInRow := regBytesLeftInRow - (64/p.bitWidth).U // Doenst matter if it overflows the last round
     }.otherwise {
       regBytesLeftInRow := regNBytesInRow
-      regCurrentRowHasValid := false.B
       regNRowsReceived := regNRowsReceived + 1.U
     }
     bramEls
@@ -104,7 +108,7 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
   val regElCnt = RegInit(0.U(log2Ceil(p.nPEs).W))
   val regRowAddrCnt = RegInit(0.U(p.bramAddrWidth.W))
   val regColAddrCnt = RegInit(0.U(p.bramAddrWidth.W))
-  val regAgentRowCnt = RegInit(0.U(p.agentWidth.W))
+  val regAgentRowCnt = RegInit(0.U((p.agentWidth+1).W))
   val regBramRowCnt = RegInit(0.U(p.bramAddrWidth.W))
 
   val regNRows = RegInit(0.U((p.agentWidth.W)))
@@ -113,7 +117,7 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
   val regDramRowsPerMatrixRow = RegInit(0.U(log2Ceil(p.maxProblemSize*8).W))
   val regDramRowIdx = RegInit(0.U(log2Ceil(p.maxProblemSize*8).W))
   val regNRowsReceived = RegInit(0.U(p.agentWidth.W)) // Count how many rows we have fully recevied from DRAM
-  val regCurrentRowHasValid = RegInit(false.B)
+  val newRowStarted = WireInit(true.B)
 
 
 
@@ -152,6 +156,7 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
         regDramRowIdx := 0.U
         regElCnt := 0.U
         regBramLine := 0.U.asTypeOf(new BramLine(p))
+        regAgentRowCnt := 0.U
       }
     }
     is (sRunning) {
@@ -161,26 +166,27 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
         bramEls.zipWithIndex.map{case (b,i) =>
           val col = WrapAdd(regColAddrCnt,i.U, regNCols)
           b.col := col
-          b.last := col === regNCols
-          printf("%d ", b.value)
+          b.last := col === (regNCols-1.U)
+          printf("val=%d last=%d", b.value, b.last)
         }
         printf("\n")
 
         val nValids = PopCount(bramEls.map(_.value =/= 0.U))
         printf("nValids = %d\n", nValids)
         val valids = Compactor(bramEls, bramEls.map(_.value =/= 0.U))
+        // Set the last valid
+        valids(nValids-1.U).last := bramEls.map(_.last).reduce(_||_)
         valids.map( v =>
-          printf("%d ", v.value)
+          printf("value: %d last:%d", v.value,v.last)
         )
         printf("\n")
         // First check whether we have any new rows starting this round
-        when(!regCurrentRowHasValid) {
+        when(newRowStarted) {
           when(nValids > 0.U) {
             io.agentRowAddress.valid := true.B
             io.agentRowAddress.bits.agentId := regAgentRowCnt
             io.agentRowAddress.bits.colAddr := regElCnt
             io.agentRowAddress.bits.rowAddr := regBramRowCnt
-            regCurrentRowHasValid := true.B
           }
         }
 

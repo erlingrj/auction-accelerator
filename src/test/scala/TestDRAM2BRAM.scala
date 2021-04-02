@@ -1,5 +1,6 @@
 package auction
 
+import Chisel.Cat
 import org.scalatest._
 import chiseltest._
 import chisel3._
@@ -127,19 +128,98 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     ))
   }
 
-  /*
-  def bramCmds(c: DRAM2BRAM, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[OCMMasterIF] = {
-    Seq.tabulate(1)(idx =>
-    chiselTypeOf(c.io.bramCmd).Lit(
-    )
+
+  def tuple2BramEl(c: DRAM2BRAM, t: (Int,Int,Int)): BigInt = {
+    val res = BigInt((t._1).toLong | (t._2).toLong << 1 | t._3.toLong << (1 + c.p.agentWidth))
+    res
   }
-*/
+
+  def bramEls2BramLine(c: DRAM2BRAM, e: Seq[BigInt]): BigInt = {
+    var res: BigInt = 0
+    e.zipWithIndex.foreach((v) =>
+      res = res | v._1 << (v._2 * (c.p.bitWidth + c.p.agentWidth + 1) )
+    )
+    res
+  }
+
+  def bramCmds(c: DRAM2BRAM, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[BigInt] = {
+    def findLastNonZero(v: Seq[Int]): Int = {
+      var res = 0
+      v.map(_ != 0).zipWithIndex.foreach(v => if(v._1) res = v._2)
+      res
+    }
+
+    val elsPerRow = c.p.nPEs
+    var bramRow = ArrayBuffer[(Int,Int,Int)]() //last, col, value
+    val bramRows= ArrayBuffer[ArrayBuffer[(Int,Int,Int)]]()
+
+    for (i <- 0 until words.length) {
+      var validInRow = false
+      val lastNonZero = findLastNonZero(words(i))
+      for (j <- 0 until words(i).length) {
+        if (words(i)(j) != 0) {
+          validInRow = true
+          if (j == lastNonZero) bramRow += (( 1, j, words(i)(j)))
+          else bramRow += (( 0, j, words(i)(j)))
+        }
+        // If we have filled a row. ADd to the bramROws
+        if (bramRow.length == elsPerRow) {
+          bramRows += bramRow
+          bramRow = ArrayBuffer[(Int,Int,Int)]()
+        }
+        }
+      }
+
+    if (bramRow.length > 0) {
+      bramRows += bramRow
+    }
+
+    Seq.tabulate(bramRows.length)(idx =>
+      bramEls2BramLine(c, bramRows(idx).map(tuple2BramEl(c,_)))
+    )
+
+    }
+
+
+  def calcNBramCmds(c: DRAM2BRAM, words: Seq[Seq[Int]]): Int = {
+    var nBramCmds = 0
+    var runningValids = 0
+    words.foreach(_.foreach(
+      v => if (v > 0) {
+        runningValids += 1
+        if (runningValids == c.p.nPEs) {
+          nBramCmds += 1
+          runningValids = 0
+        }
+      }
+    ))
+    if (runningValids > 0) nBramCmds + 1
+    else nBramCmds
+  }
+
+  def expectBramCmds(c: DRAM2BRAM, words: Seq[BigInt]): Unit = {
+    for (i <- 0 until words.length) {
+      var cc = 0
+      while(c.io.bramCmd.req.writeEn.peek.litToBoolean == false) {
+        if (cc >= 1000) assert(false)
+        c.clock.step(1)
+        cc +=1
+      }
+      c.io.bramCmd.expect(chiselTypeOf(c.io.bramCmd).Lit(
+        _.req.writeEn -> true.B,
+        _.req.writeData -> words(i).U,
+        _.req.addr -> i.U,
+        _.rsp.readData -> 0.U
+      ))
+    }
+  }
+
 
   behavior of "DRAM2BRAM"
 
   it should "correctly transform simple example" in {
 
-    test(new DRAM2BRAM(ap)) { c =>
+  test(new DRAM2BRAM(ap)) { c =>
       initClocks(c)
       val nRows = 2;
       val nCols = 8;
@@ -159,6 +239,8 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
         c.io.dramRsp.enqueueSeq(dramRsps(c,data, nRows, nCols))
       }.fork {
         c.io.agentRowAddress.expectDequeueSeq(agentRowAddresses(c,data,nRows,nCols))
+      }.fork {
+        expectBramCmds(c,bramCmds(c,data,nRows,nCols))
       }.join()
     }
   }

@@ -15,8 +15,6 @@ class AuctionParams(
   val bitWidth: Int,
   val maxProblemSize: Int,
   val memWidth: Int,
-  val bramDataWidth: Int = 512,
-  val bramAddrWidth: Int = 8
                    ) extends PrintableParam
 {
   def headersAsList(): List[String] = {
@@ -32,6 +30,8 @@ class AuctionParams(
   def agentWidth: Int = log2Ceil(maxProblemSize)
   def pricesPerPE: Int = maxProblemSize/nPEs
   def pricesPerPEWidth: Int = log2Ceil(pricesPerPE)
+  def bramDataWidth: Int = (bitWidth + 1 + agentWidth)*nPEs // Enough to store data + col + last for each PE
+  def bramAddrWidth: Int = maxProblemSize*maxProblemSize / (nPEs) //Enough to store max problemsize
 }
 /*
 trait AuctionParams {
