@@ -12,9 +12,7 @@ import fpgatidbits.synthutils.PrintableParam
 object CalcNBytes {
 def apply(nRows: UInt, nCols: UInt, bitWidth: Int): UInt = {
   val elsPerWord = 64/bitWidth //How many elements in one DRAM word (e.g. 8bit = 8 elements in 64 bit word)
-  val shift = log2Ceil(elsPerWord)
   val elsPerRow = RoundUpAlign(elsPerWord, nCols) // How many elements we need per row. Aligned up to fill up entire words
-
   if (bitWidth == 8) {
     elsPerRow * nRows
   } else {
@@ -28,8 +26,6 @@ class MemCtrlParams(
   val nPEs: Int,
   val mrp: MemReqParams,
   val maxProblemSize: Int,
-  val bramDataWidth: Int = 512,
-  val bramAddrWidth: Int = 8
 ) extends PrintableParam {
   override def headersAsList(): List[String] = {
     List(
@@ -45,6 +41,10 @@ class MemCtrlParams(
   def agentWidth = log2Ceil(maxProblemSize)
   def elBits = bitWidth + log2Ceil(maxProblemSize)
   def unusedBits = 72 - (elBits*nPEs) - 1
+  def bramDataWidth: Int = (bitWidth + 1 + agentWidth)*nPEs // Enough to store data + col + last for each PE
+  def bramAddrWidth: Int = maxProblemSize*maxProblemSize / (nPEs) //Enough to store max problemsize
+  def bramAddrBits: Int = log2Ceil(maxProblemSize*maxProblemSize / (nPEs)) //Enough to store max problemsize
+  def agentRowStoreParams: RegStoreParams = new RegStoreParams(1,1,0, agentWidth)
 }
 
 

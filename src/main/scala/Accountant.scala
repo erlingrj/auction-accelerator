@@ -12,7 +12,7 @@ class AccountantParams(
   val bitWidth: Int,
   val nPEs: Int,
   val mrp: MemReqParams,
-  val maxProblemSize: Int
+  val maxProblemSize: Int,
 ) extends PrintableParam {
   
   override def headersAsList(): List[String] = {
@@ -27,6 +27,7 @@ class AccountantParams(
     )
   }
   def agentWidth = log2Ceil(maxProblemSize)
+  val priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs, 0, 1, agentWidth)
 }
 
 abstract class Accountant(ap: AccountantParams) extends MultiIOModule {
@@ -41,7 +42,7 @@ abstract class Accountant(ap: AccountantParams) extends MultiIOModule {
 
 class WriteBackStream(ap: AccountantParams) extends Bundle {
   val start = Output(Bool())
-  val wrData = Decoupled(UInt(32.W)) // TODO: One-size for prices AND agents? Or one streamwriter per?
+  val wrData = Decoupled(UInt(64.W)) // TODO: One-size for prices AND agents? Or one streamwriter per?
   val finished = Input(Bool())
 }
 

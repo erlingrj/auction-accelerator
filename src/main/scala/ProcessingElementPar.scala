@@ -8,7 +8,7 @@ import fpgatidbits.synthutils.PrintableParam
 class ProcessingElementParams(
   val bitWidth: Int,
   val nPEs: Int,
-  val maxProblemSize: Int
+  val maxProblemSize: Int,
 ) extends PrintableParam {
 
   override def headersAsList(): List[String] = {
@@ -23,6 +23,7 @@ class ProcessingElementParams(
     )
   }
   def agentWidth = log2Ceil(maxProblemSize)
+  def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs,0 ,1,agentWidth)
 }
 // ProcessingElements do the processing (subtraction) and calculates the net benefit
 // ProcessingElementPar is the "paralell" implementation

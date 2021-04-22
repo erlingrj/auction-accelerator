@@ -13,6 +13,56 @@ The first is a parallell processing parallell Search the second is sequential an
 
 
 ## Log
+
+## April 20
+- Upgrade DRAM2BRAM module, now rows are bram-word aligned also
+- BramController needs tests (Boiler plate is done)
+
+## April 19
+- New PEWithExtPrice looks good
+- Started working the BramController. But had to make changes to DRAM2BRAM
+- Just finished with utility function for calculating the AgentRowInfo stuff. Should test that we now also get the length
+- Then finish up BramController and Accountant
+
+
+## April 6
+- DRAM2BRAM looks to be about done
+- RegStore looks good.
+- Next up: Move prices into RegStore and adapt Accountant and PEs.
+- Then=> Move from DRAM to BRAM with sparsity. Requires a couple of things:
+1. BRAMMemCtroller which fetches data until last bit is set. and feeds a stream of data out (with last bits)
+2. A AgentRowAddress storage based on RegStore
+3. Connect BRAM module to all this
+
+## April 2
+- Got the first test of DRAM2BRAM working with the golden model an everything. Now its just a matter of testing all the edge cases
+- Gotta test:
+1. DRAM rows with no valid entry
+2. Problem row spread over multiple DRAM rows filling multiple BRAM rows
+3. 
+- Then: Make the RegStore with one writer and multiple readers. Consider making it based on LUTRAMs also
+- Then we need to move both AgentRowAddresses and Prices into RegStore
+- Then adapt Accountant and PEs to use RegStore for Prices
+- Then make the new AuctionBRAMController
+
+## April 1
+- Started testing DRAM2BRAM. Just fixed bug in the Compactor.
+- Probably the respQ is not needed as we have no need to stall incoming data.
+- Just follow the signs.
+
+## March 25
+- Some minor things missing in the DRAM2BRAM module before you can start making real unit tests:
+1. We have to count the received dram-words so that we know when its "finished"
+2. We must possibly do a last round if we overflow on the last dram-word
+
+- Then what remains is simply: 
+1. Adapt controller to FIRST start DRAM2BRAM and schedule all the BRAM reads
+2. Make a BRAM controller that just fetches the data straight from BRAM 
+3. Make the AgentRowStartAddress Register storage
+4. Make the Prices Register storage
+5. Adapt Accountant to write to the Prices Register Storage
+6. Yiddi yaddi ya. It is actually quite alot to do here. Fuck
+
 ## March 12: Run
 - A really small variant of the accelerator with 8PEs runs on the ZedBoard with 100MHz (I think) clock.
 - I have spent HOURS trying to execute a simple shell command in Scala using the environmental variables

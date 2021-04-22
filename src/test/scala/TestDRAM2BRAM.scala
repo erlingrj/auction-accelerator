@@ -27,16 +27,16 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
   )
 
   def initClocks(c: DRAM2BRAM): Unit = {
-    c.io.agentRowAddress.initSink().setSinkClock(c.clock)
+    c.io.agentRowAddress.req.initSink().setSinkClock(c.clock)
+    c.io.agentRowAddress.rsp.initSource().setSourceClock(c.clock)
     c.io.dramRsp.initSource().setSourceClock(c.clock)
     c.io.dramReq.initSink().setSinkClock(c.clock)
   }
 
   def arrToDRAMWord(vals: Array[Int]): UInt = {
-    var res: Long = 0
+    var res: BigInt = 0
     for (i <- 0 until 8) {
-      res = res | vals(i).toLong << 8*i
-      println(s"i=$i v=${vals(i)} res=$res")
+      res = res | BigInt(vals(i)) << 8*i
     }
     res.U
   }
@@ -87,7 +87,6 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
         flatIdx += 1
       }
     }
-    memWords.foreach(v => print(arrToDRAMWord(v)))
     Seq.tabulate(memWords.length)(idx =>
     chiselTypeOf(c.io.dramRsp).bits.Lit(
       _.readData->arrToDRAMWord(memWords(idx)),
@@ -98,46 +97,63 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     ))
   }
 
-  def agentRowAddresses(c:DRAM2BRAM, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[AgentRowInfo] = {
+  def agentRowAddresses(c:DRAM2BRAM, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[RegStoreReq[AgentRowInfo]] = {
     var bramColIdx = 0; var bramRowIdx = 0;
-    val agentRows = ArrayBuffer[(Int,Int,Int)]()
+    val agentRows = ArrayBuffer[(Int,Int,Int,Int)]() //id, row, col, row_stop
     var isRegistered = false
+    var valid = false
+    var rowInfo: (Int,Int,Int,Int) = (0,0,0,0)
     for (i <- 0 until words.length) {
       for (j <- 0 until words(i).length) {
         if (words(i)(j) != 0) {
           if (!isRegistered) {
             isRegistered = true
-            agentRows += ((i,bramColIdx, bramRowIdx))
+            valid = true
+            rowInfo = (i,bramRowIdx, bramColIdx, bramRowIdx)
+          }
+
+          if (isRegistered && (bramRowIdx != rowInfo._4)) {
+            rowInfo = (rowInfo._1, rowInfo._2, rowInfo._3, rowInfo._4 + 1)
           }
           bramColIdx += 1
+
           if (bramColIdx == c.p.nPEs) {
             bramColIdx = 0
             bramRowIdx += 1
           }
         }
       }
+      if (valid) {
+        valid = false
+        agentRows += rowInfo
+        if (bramColIdx > 0) {
+          bramRowIdx +=1
+          bramColIdx = 0
+        }
+      }
       isRegistered = false
     }
-    print(agentRows)
-    Seq.tabulate(agentRows.length)(idx =>
-    chiselTypeOf(c.io.agentRowAddress).bits.Lit(
-      _.agentId -> agentRows(idx)._1.U,
-      _.colAddr -> agentRows(idx)._2.U,
-      _.rowAddr -> agentRows(idx)._3.U
 
+    Seq.tabulate(agentRows.length)(idx =>
+      chiselTypeOf(c.io.agentRowAddress.req).bits.Lit(
+        _.wen -> true.B,
+        _.addr -> agentRows(idx)._1.U,
+        _.wdata.rowAddr -> agentRows(idx)._2.U,
+        _.wdata.length -> (agentRows(idx)._4 - agentRows(idx)._2 + 1).U
     ))
   }
 
 
-  def tuple2BramEl(c: DRAM2BRAM, t: (Int,Int,Int)): BigInt = {
-    val res = BigInt((t._1).toLong | (t._2).toLong << 1 | t._3.toLong << (1 + c.p.agentWidth))
+  def tuple2BramEl(c: DRAM2BRAM, t: (Int,Int)): BigInt = {
+    val res = ( BigInt(t._1) | BigInt(t._2 << (c.p.agentWidth)) )
     res
   }
 
   def bramEls2BramLine(c: DRAM2BRAM, e: Seq[BigInt]): BigInt = {
     var res: BigInt = 0
-    e.zipWithIndex.foreach((v) =>
-      res = res | v._1 << (v._2 * (c.p.bitWidth + c.p.agentWidth + 1) )
+    e.zipWithIndex.foreach((v) => {
+      res = res | v._1 << (v._2 * (c.p.bitWidth + c.p.agentWidth));
+    }
     )
     res
   }
@@ -150,8 +166,8 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     }
 
     val elsPerRow = c.p.nPEs
-    var bramRow = ArrayBuffer[(Int,Int,Int)]() //last, col, value
-    val bramRows= ArrayBuffer[ArrayBuffer[(Int,Int,Int)]]()
+    var bramRow = ArrayBuffer[(Int,Int)]() //col, value
+    val bramRows = ArrayBuffer[ArrayBuffer[(Int,Int)]]()
 
     for (i <- 0 until words.length) {
       var validInRow = false
@@ -159,25 +175,32 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       for (j <- 0 until words(i).length) {
         if (words(i)(j) != 0) {
           validInRow = true
-          if (j == lastNonZero) bramRow += (( 1, j, words(i)(j)))
-          else bramRow += (( 0, j, words(i)(j)))
+          if (j == lastNonZero) bramRow += (( j, words(i)(j)))
+          else bramRow += (( j, words(i)(j)))
         }
         // If we have filled a row. ADd to the bramROws
         if (bramRow.length == elsPerRow) {
           bramRows += bramRow
-          bramRow = ArrayBuffer[(Int,Int,Int)]()
+          bramRow = ArrayBuffer[(Int,Int)]()
         }
         }
+      // If we had valid elements in that row. Send it off
+      if (bramRow.length > 0) {
+        bramRows += bramRow
+        bramRow = ArrayBuffer[(Int,Int)]()
+      }
       }
 
     if (bramRow.length > 0) {
       bramRows += bramRow
     }
 
-    Seq.tabulate(bramRows.length)(idx =>
+
+    val res = Seq.tabulate(bramRows.length)(idx =>
       bramEls2BramLine(c, bramRows(idx).map(tuple2BramEl(c,_)))
     )
 
+    res
     }
 
 
@@ -211,6 +234,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
         _.req.addr -> i.U,
         _.rsp.readData -> 0.U
       ))
+      c.clock.step(1)
     }
   }
 
@@ -219,7 +243,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
 
   it should "correctly transform simple example" in {
 
-  test(new DRAM2BRAM(ap)) { c =>
+    test(new DRAM2BRAM(ap)) { c =>
       initClocks(c)
       val nRows = 2;
       val nCols = 8;
@@ -228,9 +252,8 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       c.io.nCols.poke(nCols.U)
       c.io.start.poke(true.B)
       c.io.baseAddr.poke(baseAddr.U)
-
       c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
-
+      c.io.start.poke(false.B)
       val data = Seq(
         Seq(1,0,3,0,5,0,7,0),
         Seq(0,2,0,4,0,6,0,8)
@@ -238,17 +261,241 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       fork {
         c.io.dramRsp.enqueueSeq(dramRsps(c,data, nRows, nCols))
       }.fork {
-        c.io.agentRowAddress.expectDequeueSeq(agentRowAddresses(c,data,nRows,nCols))
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c,data,nRows,nCols))
       }.fork {
         expectBramCmds(c,bramCmds(c,data,nRows,nCols))
       }.join()
+    }
+  }
+  it should "different number of PEs2" in {
+    val mp = new MemReqParams(32, 64, 6, 1, true)
+    val ap = new MemCtrlParams(
+      nPEs = 10, bitWidth = 8, mrp = mp, maxProblemSize = 64
+    )
+    test(new DRAM2BRAM(ap)) { c =>
+      initClocks(c)
+      var nRows = 2;
+      var nCols = 8;
+      val baseAddr = 0
+      c.io.nRows.poke(nRows.U)
+      c.io.nCols.poke(nCols.U)
+      c.io.start.poke(true.B)
+      c.io.baseAddr.poke(baseAddr.U)
+
+      c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
+
+      c.io.start.poke(false.B)
+
+      val r = scala.util.Random
+      //r.setSeed(100L)
+      r.setSeed(101L)
+
+      val data = for (i <- 0 until nRows) yield for (j <- 0 until nCols) yield r.nextInt(256)
+      fork {
+        c.io.dramRsp.enqueueSeq(dramRsps(c, data, nRows, nCols))
+      }.fork {
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c, data, nRows, nCols))
+      }.fork {
+        expectBramCmds(c, bramCmds(c, data, nRows, nCols))
+      }.join()
+    }}
+  it should "different number of PEs" in {
+    val mp = new MemReqParams(32, 64, 6, 1, true)
+    val ap = new MemCtrlParams(
+      nPEs = 10, bitWidth = 8, mrp = mp, maxProblemSize = 64
+    )
+    test(new DRAM2BRAM(ap)) { c =>
+      initClocks(c)
+      var nRows = 2;
+      var nCols = 8;
+      val baseAddr = 0
+      c.io.nRows.poke(nRows.U)
+      c.io.nCols.poke(nCols.U)
+      c.io.start.poke(true.B)
+      c.io.baseAddr.poke(baseAddr.U)
+
+      c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
+
+      c.io.start.poke(false.B)
+
+      val r = scala.util.Random
+      //r.setSeed(100L)
+      r.setSeed(101L)
+
+      //val data = for (i <- 0 until nRows) yield for (j <- 0 until nCols) yield r.nextInt(256)
+      val data = Seq(
+        Seq(1,2,3,4,5,0,0,0),
+        Seq(6,7,8,0,9,0,10,0)
+      )
+      fork {
+        c.io.dramRsp.enqueueSeq(dramRsps(c, data, nRows, nCols))
+      }.fork {
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c, data, nRows, nCols))
+      }.fork {
+        expectBramCmds(c, bramCmds(c, data, nRows, nCols))
+      }.join()
+    }}
+  it should "work with wierd col/row" in {
+    test(new DRAM2BRAM(ap)) { c =>
+      initClocks(c)
+      var nRows = 7;
+      var nCols = 7;
+      val baseAddr = 0
+      c.io.nRows.poke(nRows.U)
+      c.io.nCols.poke(nCols.U)
+      c.io.start.poke(true.B)
+      c.io.baseAddr.poke(baseAddr.U)
+
+      c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
+
+      c.io.start.poke(false.B)
+
+      val r = scala.util.Random
+      //r.setSeed(100L)
+      r.setSeed(101L)
+
+      //val data = for (i <- 0 until nRows) yield for (j <- 0 until nCols) yield r.nextInt(256)
+      val data = Seq(
+        Seq(1,0,0,0,0,0,0),
+        Seq(2,0,0,0,0,0,0),
+        Seq(3,0,0,0,0,0,0),
+        Seq(4,0,0,0,0,0,0),
+        Seq(5,0,0,0,0,0,0),
+        Seq(6,0,0,0,0,0,0),
+        Seq(7,0,0,0,0,0,0)
+      )
+      fork {
+        c.io.dramRsp.enqueueSeq(dramRsps(c, data, nRows, nCols))
+      }.fork {
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c, data, nRows, nCols))
+      }.fork {
+        expectBramCmds(c, bramCmds(c, data, nRows, nCols))
+      }.join()
+    }}
+  it should "work with all zeros row" in {
+    test(new DRAM2BRAM(ap)) { c =>
+      initClocks(c)
+      var nRows = 4;
+      var nCols = 8;
+      val baseAddr = 0
+      c.io.nRows.poke(nRows.U)
+      c.io.nCols.poke(nCols.U)
+      c.io.start.poke(true.B)
+      c.io.baseAddr.poke(baseAddr.U)
+
+      c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
+
+      c.io.start.poke(false.B)
+
+      val r = scala.util.Random
+      //r.setSeed(100L)
+      r.setSeed(101L)
+
+      //val data = for (i <- 0 until nRows) yield for (j <- 0 until nCols) yield r.nextInt(256)
+      val data = Seq(
+        Seq(1,2,3,4,5,6,7,8),
+        Seq(0,0,0,0,0,0,0,0),
+        Seq(11,12,13,14,15,16,17,18),
+        Seq(19,20,21,22,23,24,25,26)
+      )
+      fork {
+        c.io.dramRsp.enqueueSeq(dramRsps(c, data, nRows, nCols))
+      }.fork {
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c, data, nRows, nCols))
+      }.fork {
+        expectBramCmds(c, bramCmds(c, data, nRows, nCols))
+      }.join()
+    }}
+  it should "work with spilling over" in {
+    test(new DRAM2BRAM(ap)) { c =>
+      initClocks(c)
+      var nRows = 4;
+      var nCols = 8;
+      val baseAddr = 0
+      c.io.nRows.poke(nRows.U)
+      c.io.nCols.poke(nCols.U)
+      c.io.start.poke(true.B)
+      c.io.baseAddr.poke(baseAddr.U)
+
+      c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
+
+      c.io.start.poke(false.B)
+
+      val r = scala.util.Random
+      //r.setSeed(100L)
+      r.setSeed(101L)
+
+      //val data = for (i <- 0 until nRows) yield for (j <- 0 until nCols) yield r.nextInt(256)
+      val data = Seq(
+        Seq(1,2,3,4,5,6,7,8),
+        Seq(9,10,0,0,0,0,0,0),
+        Seq(11,12,13,14,15,16,17,18),
+        Seq(19,20,21,22,23,24,25,26)
+      )
+      fork {
+        c.io.dramRsp.enqueueSeq(dramRsps(c, data, nRows, nCols))
+      }.fork {
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c, data, nRows, nCols))
+      }.fork {
+        expectBramCmds(c, bramCmds(c, data, nRows, nCols))
+      }.join()
+    }}
+  it should "work for bigger examples" in {
+    test(new DRAM2BRAM(ap)) { c =>
+      initClocks(c)
+      var nRows = 16;
+      var nCols = 16;
+      val baseAddr = 0
+      c.io.nRows.poke(nRows.U)
+      c.io.nCols.poke(nCols.U)
+      c.io.start.poke(true.B)
+      c.io.baseAddr.poke(baseAddr.U)
+
+      c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
+
+      c.io.start.poke(false.B)
+
+      val r = scala.util.Random
+      //r.setSeed(100L)
+      r.setSeed(101L)
+
+      val data = for (i <- 0 until nRows) yield for (j <- 0 until nCols) yield r.nextInt(256)
+      fork {
+        c.io.dramRsp.enqueueSeq(dramRsps(c,data, nRows, nCols))
+      }.fork {
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c,data,nRows,nCols))
+      }.fork {
+        expectBramCmds(c,bramCmds(c,data,nRows,nCols))
+      }.join()
+
+      nRows = 32;
+      nCols = 32;
+      c.io.nRows.poke(nRows.U)
+      c.io.nCols.poke(nCols.U)
+      c.io.start.poke(true.B)
+      c.io.baseAddr.poke(baseAddr.U)
+
+      c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
+
+
+
+
+      val data2 = for (i <- 0 until nRows) yield for (j <- 0 until nCols) yield r.nextInt(256)
+      fork {
+        c.io.dramRsp.enqueueSeq(dramRsps(c,data2, nRows, nCols))
+      }.fork {
+        c.io.agentRowAddress.req.expectDequeueSeq(agentRowAddresses(c,data2,nRows,nCols))
+      }.fork {
+        expectBramCmds(c,bramCmds(c,data2,nRows,nCols))
+      }.join()
+
     }
   }
   it should "Initialize correctly" in {
     test(new DRAM2BRAM(ap)) { c =>
       c.io.dramReq.valid.expect(false.B)
       c.io.dramRsp.ready.expect(true.B)
-      c.io.agentRowAddress.valid.expect(false.B)
+      c.io.agentRowAddress.rsp.valid.expect(false.B)
       c.io.finished.expect(false.B)
     }
   }
@@ -263,7 +510,6 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       c.io.nCols.poke(nCols.U)
       c.io.start.poke(true.B)
       c.io.baseAddr.poke(baseAddr.U)
-
 
       c.io.dramReq.expectDequeueSeq(dramReqs(c, nRows, nCols, baseAddr))
     }

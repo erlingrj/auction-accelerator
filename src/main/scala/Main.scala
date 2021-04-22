@@ -21,7 +21,7 @@ object Settings {
   type AccelMap = Map[String, AccelInstFxn]
 
   def makeInstFxn(myP: AuctionParams) : AccelInstFxn = {
-    return { (p: PlatformWrapperParams) => new Auction(p, myP)}
+    return { (p: PlatformWrapperParams) => new AuctionBram(p, myP)}
   }
 
   def writeVerilogToFile(verilog: String, path: String) = {
@@ -89,27 +89,27 @@ object CharacterizeMain {
 
   val mp = new MemReqParams(32, 64, 6, 1, true)
 
-  val instFxn_Accountant = {(ap: AccountantParams) => new AccountantNonPipelined(ap)}
+  val instFxn_Accountant = {(ap: AccountantParams) => new AccountantExtPriceNonPipelined(ap)}
   val aP = new AccountantParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )
-  val instFxn_PE = {(ap: ProcessingElementParams) => new ProcessingElementPar(ap, 0)}
+  val instFxn_PE = {(ap: ProcessingElementParams) => new ProcessingElementExtPrice(ap)}
   val peP = new ProcessingElementParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128
   )
-  val instFxn_MemoryController = {(ap: MemCtrlParams) => new AuctionDRAMController(ap)}
+  val instFxn_MemoryController = {(ap: MemCtrlParams) => new BramController(ap)}
   val mcP = new MemCtrlParams(
-    bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp, bramAddrWidth = 8, bramDataWidth = 512
+    bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )
   val instFxn_SearchTask= {(ap: SearchTaskParams) => new SearchTaskPar(ap)}
   val stP = new SearchTaskParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128
   )
-  val instFxn_DataDistributor = {(ap: DataDistributorParams) => new DataDistributorParUnO(ap)}
+  val instFxn_DataDistributor = {(ap: DataDistributorParams) => new DataDistributorSparse(ap)}
   val ddP = new DataDistributorParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, memWidth = 64
   )
-  val instFxn_Controller= {(ap: ControllerParams) => new Controller(ap)}
+  val instFxn_Controller= {(ap: ControllerParams) => new ControllerBram(ap)}
   val cP = new ControllerParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )
@@ -127,28 +127,28 @@ object CharacterizeMain {
     val fpgaPart: String = TidbitsMakeUtils.fpgaPartMap(platform)
 
     if (chName == "Accountant") {
-      VivadoSynth.characterizePoint(aP, instFxn_Accountant, chPath, fpgaPart, "AccountantNonPipelined")
+      VivadoSynth.characterizePoint(aP, instFxn_Accountant, chPath, fpgaPart, "AccountantExtPriceNonPipelined")
     }
     else if (chName == "CharacterizeProcessingElement") {
-      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementPar")
+      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementExtPrice")
     } else if (chName == "CharacterizeMemoryController") {
-      VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "AuctionDRAMController")
+      VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "BramController")
     } else if (chName == "CharacterizeSearchTask") {
       VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTaskPar")
     } else if (chName == "CharacterizeDataDistributor") {
-      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributorParUnO")
+      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributorSparse")
     } else if (chName == "CharacterizeSimpleDualPortBRAM") {
       VivadoSynth.characterizePoint(aP, instFxn_SimpleDualPortBRAM, chPath, fpgaPart, "SimpleDualPortBRAM")
     } else if (chName == "CharacterizeSinglePortBRAM") {
       VivadoSynth.characterizePoint(aP, instFxn_SinglePortBRAM, chPath, fpgaPart, "SinglePortBRAM")
     } else if (chName == "CharacterizeController") {
-      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "Controller")
+      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "ControllerBram")
     } else if (chName == "CharacterizeAll") {
-      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementPar")
-      VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "AuctionDRAMController")
+      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementExtPrice")
+      VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "BramController")
       VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTaskPar")
-      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributorParUnO")
-      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "Controller")
+      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributorSparse")
+      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "ControllerBram")
     }
   }
 }

@@ -8,34 +8,18 @@ import fpgatidbits.synthutils.PrintableParam
 // It monitors the communication between Accountant and MemoryController and figures out when we are done
 // It signals the Accountant to write all data to memory and then updates reg file with info that we are done
 
-class ControllerParams(
-  val bitWidth: Int,
-  val nPEs: Int,
-  val mrp: MemReqParams,
-  val maxProblemSize: Int
-) extends PrintableParam {
 
-  override def headersAsList(): List[String] = {
-    List(
-
-    )
-  }
-
-  override def contentAsList(): List[String] = {
-    List(
-
-    )
-  }
-  def agentWidth = log2Ceil(maxProblemSize)
-}
-
-
-class ControllerIO(ap: ControllerParams) extends Bundle {
+class ControllerBramIO(ap: ControllerParams) extends Bundle {
 
   val rfCtrl  = new AppControlSignals()
   val rfInfo = new AppInfoSignals()
 
 
+  val dram2bram_start = Output(Bool())
+  val dram2bram_finished = Input(Bool())
+  val dram2bram_baseAddr = Output(UInt(64.W))
+  val dram2bram_nRows = Output(UInt(ap.agentWidth.W))
+  val dram2bram_nCols = Output(UInt(ap.agentWidth.W))
 
   val unassignedAgentsIn = Flipped(Decoupled(new AgentInfo(ap.bitWidth)))
   val unassignedAgentsOut = Decoupled(new AgentInfo(ap.bitWidth))
@@ -45,6 +29,7 @@ class ControllerIO(ap: ControllerParams) extends Bundle {
 
   val doWriteBack = Output(Bool())
   val writeBackDone = Input(Bool())
+  val reinit = Output(Bool())
 
   def driveDefaults() = {
     requestedAgentsIn.ready := false.B
@@ -55,17 +40,24 @@ class ControllerIO(ap: ControllerParams) extends Bundle {
     unassignedAgentsOut.bits := DontCare
     doWriteBack := false.B
     rfCtrl.finished := false.B
+
+    reinit := false.B
+    dram2bram_start := false.B
+    dram2bram_nCols := 0.U
+    dram2bram_nRows := 0.U
+    dram2bram_baseAddr := 0.U
   }
 }
 
 
-class Controller(ap: ControllerParams) extends Module {
-  val io = IO(new ControllerIO(ap))
+class ControllerBram(ap: ControllerParams) extends Module {
+  val io = IO(new ControllerBramIO(ap))
   io.driveDefaults()
 
   val constBackDownCount = 10
 
-  val sIdle :: sSetup :: sRunning :: sWriteBack :: sDone :: Nil = Enum(5)
+  val sIdle :: sSetupBram :: sSetupQueues :: sRunning :: sWriteBack :: sDone :: Nil = Enum(6)
+
   val regState = RegInit(sIdle)
   val regCount = RegInit(0.U(ap.agentWidth.W))
   val regBackDownCount = RegInit(0.U(log2Ceil(constBackDownCount).W))
@@ -81,21 +73,33 @@ class Controller(ap: ControllerParams) extends Module {
     is (sIdle) {
       // Wait for start signal
       when (io.rfInfo.start === true.B) {
-        regState := sSetup
+        regState := sSetupBram
         regCount := io.rfInfo.nAgents - 1.U
       }
     }
-    is (sSetup) {
-        io.unassignedAgentsOut.valid := true.B
-        io.unassignedAgentsOut.bits.agent := regCount
-        io.unassignedAgentsOut.bits.nObjects := io.rfInfo.nObjects
-        when (io.unassignedAgentsOut.fire()) {
-          when (regCount === 0.U) {
-            regState := sRunning
-          }.otherwise {
-            regCount := regCount - 1.U
-          }
+    is (sSetupBram) {
+      io.dram2bram_baseAddr := io.rfInfo.baseAddr
+      io.dram2bram_nRows := io.rfInfo.nAgents
+      io.dram2bram_nCols := io.rfInfo.nObjects
+      io.dram2bram_start := true.B
+
+      when (io.dram2bram_finished) {
+        io.dram2bram_start := false.B
+        regState := sSetupQueues
+      }
+    }
+
+    is (sSetupQueues) {
+      io.unassignedAgentsOut.valid := true.B
+      io.unassignedAgentsOut.bits.agent := regCount
+      io.unassignedAgentsOut.bits.nObjects := io.rfInfo.nObjects
+      when (io.unassignedAgentsOut.fire()) {
+        when (regCount === 0.U) {
+          regState := sRunning
+        }.otherwise {
+          regCount := regCount - 1.U
         }
+      }
     }
 
     is (sRunning) {
@@ -120,7 +124,8 @@ class Controller(ap: ControllerParams) extends Module {
     is (sDone) {
       io.rfCtrl.finished := true.B
       when (io.rfInfo.start) {
-        regState := sSetup
+        io.reinit := true.B
+        regState := sIdle
       }
     }
   }

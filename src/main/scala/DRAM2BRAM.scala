@@ -2,7 +2,7 @@ package auction
 
 import chisel3._
 import chisel3.util._
-import fpgatidbits.dma.{GenericMemoryRequest, GenericMemoryResponse, ReadReqGen}
+import fpgatidbits.dma.{GenericMemoryRequest, GenericMemoryResponse, ReadReqGen, RoundUpAlign}
 import fpgatidbits.ocm.{FPGAQueue, OCMMasterIF}
 
 
@@ -15,13 +15,19 @@ class BramLine(val mp: MemCtrlParams) extends Bundle {
 class BramEl(val mp: MemCtrlParams) extends Bundle {
   val value = UInt(mp.bitWidth.W)
   val col = UInt(mp.agentWidth.W)
-  val last = Bool()
 }
 
-class AgentRowInfo(val agentBits: Int, val bramDataBits: Int) extends Bundle {
-  val agentId = UInt(agentBits.W)
-  val rowAddr = UInt(bramDataBits.W)
-  val colAddr = UInt(bramDataBits.W)
+class AgentRowInfo(val p: MemCtrlParams) extends Bundle {
+  val rowAddr = UInt(log2Ceil(p.bramDataWidth).W)
+  val length = UInt(p.agentWidth.W)
+}
+object AgentRowInfo {
+  def apply(p: MemCtrlParams, rowAddr: UInt, length: UInt): AgentRowInfo = {
+    val res = Wire(new AgentRowInfo(p))
+    res.rowAddr := rowAddr
+    res.length := length
+    res
+  }
 }
 
 class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
@@ -30,7 +36,7 @@ class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
   val dramRsp = Flipped(Decoupled(new GenericMemoryResponse(p.mrp)))
 
   // Interface to BRAM
-  val bramCmd = new OCMMasterIF(p.bramDataWidth, p.bramDataWidth, p.bramAddrWidth)
+  val bramCmd = new OCMMasterIF(p.bramDataWidth, p.bramDataWidth, p.bramAddrBits)
 
   // Control interface
   val start = Input(Bool())
@@ -41,7 +47,8 @@ class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
 
   // Interface to module storing the agentRowAddresses
   // We need nPEs because worst case each memory fetch leads to nPE rows.
-  val agentRowAddress = Decoupled(new AgentRowInfo(log2Ceil(p.maxProblemSize), log2Ceil(p.bramDataWidth)))
+  val agentRowAddress = new RegStoreTransaction(new AgentRowInfo(p),p.agentRowStoreParams)
+
 
   def driveDefaults() = {
     dramReq.valid := false.B
@@ -49,17 +56,19 @@ class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
     dramRsp.ready := false.B
     bramCmd := DontCare
     bramCmd.req.writeEn := false.B
-    agentRowAddress.bits := DontCare
-    agentRowAddress.valid := false.B
+    agentRowAddress.req.bits := DontCare
+    agentRowAddress.req.valid := false.B
+    agentRowAddress.rsp.ready := false.B
     finished := false.B
   }
 }
 
+// Horrible class. Dont even bother looking
 class DRAM2BRAM(val p: MemCtrlParams) extends Module {
   val io = IO(new DRAM2BRAMIO(p))
   io.driveDefaults()
   require(p.bitWidth >= 8)
-  require(p.nPEs >= 8)
+  //require(p.nPEs >= 8)
   // read request generator
   val rg = Module(new ReadReqGen(p.mrp, chanID=0, maxBeats=8))
   io.dramReq <> rg.io.reqs
@@ -91,25 +100,29 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
       newRowStarted := false.B
     }
 
-    when(regBytesLeftInRow > (64/p.bitWidth).U) {
-      regBytesLeftInRow := regBytesLeftInRow - (64/p.bitWidth).U // Doenst matter if it overflows the last round
+    when(regBytesLeftInRow > (p.mrp.dataWidth/8).U) {
+      regBytesLeftInRow := regBytesLeftInRow - (p.mrp.dataWidth/8).U // Doenst matter if it overflows the last round
+      regColAddrCnt := regColAddrCnt + (64/p.bitWidth).U
+      rowFinished := false.B
     }.otherwise {
+      rowFinished := true.B
       regBytesLeftInRow := regNBytesInRow
+      regColAddrCnt := 0.U
       regNRowsReceived := regNRowsReceived + 1.U
     }
     bramEls
   }
 
-  val sIdle :: sRunning :: Nil = Enum(2)
+  val sIdle :: sRunning :: sLastSendOff ::Nil = Enum(3)
   val regState = RegInit(sIdle)
   val regBramLine = RegInit(0.U.asTypeOf(new BramLine(p)))
   val regBramElsLeftOvers = RegInit(VecInit(Seq.fill(64/p.bitWidth)(0.U.asTypeOf(new BramEl(p)))))
 
   val regElCnt = RegInit(0.U(log2Ceil(p.nPEs).W))
-  val regRowAddrCnt = RegInit(0.U(p.bramAddrWidth.W))
-  val regColAddrCnt = RegInit(0.U(p.bramAddrWidth.W))
+  val regRowAddrCnt = RegInit(0.U(log2Ceil(p.bramAddrWidth).W))
+  val regColAddrCnt = RegInit(0.U(log2Ceil(p.bramAddrWidth).W))
   val regAgentRowCnt = RegInit(0.U((p.agentWidth+1).W))
-  val regBramRowCnt = RegInit(0.U(p.bramAddrWidth.W))
+  val regBramRowCnt = RegInit(0.U(log2Ceil(p.bramAddrWidth).W))
 
   val regNRows = RegInit(0.U((p.agentWidth.W)))
   val regNCols = RegInit(0.U((p.agentWidth.W)))
@@ -118,8 +131,11 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
   val regDramRowIdx = RegInit(0.U(log2Ceil(p.maxProblemSize*8).W))
   val regNRowsReceived = RegInit(0.U(p.agentWidth.W)) // Count how many rows we have fully recevied from DRAM
   val newRowStarted = WireInit(true.B)
+  val rowFinished = WireInit(false.B)
 
-
+  val regAgentRowInfo = RegInit(0.U.asTypeOf(new AgentRowInfo(p)))
+  val regAgentRowInfoAgentIdx = RegInit(0.U(p.agentWidth.W))
+  val regAgentHasValid = RegInit(false.B)
 
   // State machine:
 
@@ -143,13 +159,14 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
         val byteCount = CalcNBytes(io.nRows, io.nCols, p.bitWidth)
         rg.io.ctrl.byteCount := byteCount
         rg.io.ctrl.start := true.B
-        val bytesInRow = (io.nCols >> ((p.bitWidth>>3)-1))
+//        val bytesInRow = (io.nCols >> ((p.bitWidth>>3)-1))
+        val bytesInRow = RoundUpAlign(align=8, io.nCols * (p.bitWidth/8).U)
         regNBytesInRow := bytesInRow
         regBytesLeftInRow := bytesInRow
 
         regState := sRunning
 
-
+        regBramRowCnt := 0.U
         regNCols := io.nCols
         regNRows := io.nRows
         regNRowsReceived := 0.U
@@ -157,6 +174,7 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
         regElCnt := 0.U
         regBramLine := 0.U.asTypeOf(new BramLine(p))
         regAgentRowCnt := 0.U
+        regColAddrCnt := 0.U
       }
     }
     is (sRunning) {
@@ -166,31 +184,67 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
         bramEls.zipWithIndex.map{case (b,i) =>
           val col = WrapAdd(regColAddrCnt,i.U, regNCols)
           b.col := col
-          b.last := col === (regNCols-1.U)
-          printf("val=%d last=%d", b.value, b.last)
+        //  printf("val=%d last=%d", b.value, b.last)
         }
-        printf("\n")
+        //printf("\n")
+
+//        bramEls.zipWithIndex.map(v => printf("bramEl-%d v=%d col=%d\n", v._2.U, v._1.value, v._1.col))
+
 
         val nValids = PopCount(bramEls.map(_.value =/= 0.U))
-        printf("nValids = %d\n", nValids)
+        //printf("nValids = %d\n", nValids)
         val valids = Compactor(bramEls, bramEls.map(_.value =/= 0.U))
-        // Set the last valid
-        valids(nValids-1.U).last := bramEls.map(_.last).reduce(_||_)
-        valids.map( v =>
-          printf("value: %d last:%d", v.value,v.last)
-        )
-        printf("\n")
-        // First check whether we have any new rows starting this round
+//        valids.zipWithIndex.map(v => printf("valids-%d v=%d col=%d\n", v._2.U, v._1.value, v._1.col))
+        val newRegElCnt = Cat(0.U(1.W), regElCnt) + nValids
+
+        // First, check wether we have any rows beginning this dramWord
         when(newRowStarted) {
-          when(nValids > 0.U) {
-            io.agentRowAddress.valid := true.B
-            io.agentRowAddress.bits.agentId := regAgentRowCnt
-            io.agentRowAddress.bits.colAddr := regElCnt
-            io.agentRowAddress.bits.rowAddr := regBramRowCnt
+          // One-round business. Row is also finished
+          when (rowFinished) {
+            when(nValids > 0.U) {
+              io.agentRowAddress.req.valid := true.B
+              io.agentRowAddress.req.bits.wen := true.B
+              io.agentRowAddress.req.bits.addr := regAgentRowCnt
+              // Spread out over 2 or 1 BRAM row?
+              when (newRegElCnt > p.nPEs.U) {
+                io.agentRowAddress.req.bits.wdata := AgentRowInfo(p, regBramRowCnt, 2.U)
+              }.otherwise {
+                io.agentRowAddress.req.bits.wdata := AgentRowInfo(p, regBramRowCnt,1.U)
+              }
+            }
+          }.otherwise {
+            // Multi-round thing
+            regAgentRowInfo.rowAddr := regBramRowCnt
+            regAgentRowInfoAgentIdx := regAgentRowCnt
+            regAgentHasValid := (nValids > 0.U)
+            when (newRegElCnt >= p.nPEs.U) {
+              regAgentRowInfo.length := 2.U
+            }.otherwise {
+              regAgentRowInfo.length := 1.U
+            }
+          }
+        }.elsewhen(rowFinished) {
+          // This round wraps up for a row
+          when (regAgentHasValid) {
+           io.agentRowAddress.req.valid := true.B
+            io.agentRowAddress.req.bits.addr := regAgentRowInfoAgentIdx
+            when (newRegElCnt > p.nPEs.U) {
+              io.agentRowAddress.req.bits.wdata := AgentRowInfo(p, regAgentRowInfo.rowAddr, regAgentRowInfo.length + 1.U)
+            }.otherwise {
+              io.agentRowAddress.req.bits.wdata := regAgentRowInfo
+            }
+          }.otherwise {
+            io.agentRowAddress.req.bits.addr := regAgentRowInfoAgentIdx
+            io.agentRowAddress.req.valid := (nValids > 0.U)
+            io.agentRowAddress.req.bits.wdata := AgentRowInfo(p, regAgentRowInfo.rowAddr, 1.U)
+          }
+        }.otherwise{
+          // Intermediate round. Check if we got valid stuff there
+          when (!regAgentHasValid) {
+            regAgentHasValid := (nValids > 0.U)
           }
         }
 
-        val newRegElCnt = Cat(0.U(1.W), regElCnt) + nValids
         when (newRegElCnt >= p.nPEs.U) {
           // We are filling up a bramLine. Fire it of and fit the remainder on the next line
           // 1. fill the remaining spots
@@ -206,6 +260,7 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
           // Fire it off
           io.bramCmd.req.writeEn := true.B
           io.bramCmd.req.writeData := bramLine.asUInt()
+          io.bramCmd.req.addr := regBramRowCnt
 
           // Add the remaining to the regBramLine
           valids.zipWithIndex.map{case (el,i) =>
@@ -214,7 +269,41 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
             }
           }
           // Increment the idx
-          regElCnt := regElCnt + (p.nPEs.U - spotsLeft)
+          regElCnt := nValids - spotsLeft
+          regBramRowCnt := regBramRowCnt + 1.U
+
+          // Also increment the length field of the agentRowInfo register
+          when (!rowFinished && !newRowStarted) {
+            regAgentRowInfo.length := regAgentRowInfo.length + 1.U
+          }
+
+          // If this was the last dram-word go to lastSendOff
+          when (rowFinished && newRegElCnt > p.nPEs.U) {
+            regState := sLastSendOff
+          }
+
+        }.elsewhen(rowFinished && ( (nValids > 0.U) || regElCnt > 0.U) ) {
+          // This was the last round (and first)
+          // Send off and reset
+          val bramLine = WireInit(0.U.asTypeOf(new BramLine(p)))
+          for (i <- 0 until bramLine.els.length)  {
+            when (i.U < regElCnt) {
+              bramLine.els(i) := regBramLine.els(i)
+            }.otherwise {
+              if (i < 64/p.bitWidth) {
+                bramLine.els(i) := valids(i)
+              }
+            }
+          }
+
+          // Fire it off
+          io.bramCmd.req.writeEn := true.B
+          io.bramCmd.req.writeData := bramLine.asUInt()
+          io.bramCmd.req.addr := regBramRowCnt
+
+          regElCnt := 0.U
+          regBramRowCnt := regBramRowCnt + 1.U
+
 
         }.otherwise{
           // Add the valid guys to the bramLine and increment
@@ -229,11 +318,41 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
       }.elsewhen(regNRowsReceived === regNRows) {
         // We dont get anymore lines since we got'em all. Send out the stored BRAM-line if a
         when(regElCnt > 0.U) {
+          val bramLine = WireInit(0.U.asTypeOf(new BramLine(p)))
+          bramLine.els.zipWithIndex.map { case (el, i) =>
+            when (i.U < regElCnt) {
+              el := regBramLine.els(i)
+            }
+          }
           io.bramCmd.req.writeEn := true.B
-          io.bramCmd.req.writeData := regBramLine.asUInt()
+          io.bramCmd.req.writeData := bramLine.asUInt()
+          io.bramCmd.req.addr := regBramRowCnt
+
+
+          // Also send out the RowAgentInfo
+          io.agentRowAddress.req.valid := regAgentHasValid
+          io.agentRowAddress.req.bits.addr := regAgentRowInfoAgentIdx
+          io.agentRowAddress.req.bits.wdata:= regAgentRowInfo
         }
+        io.finished := true.B
         regState := sIdle
       }
+    }
+    is (sLastSendOff) {
+      io.bramCmd.req.writeEn := true.B
+      io.bramCmd.req.writeData := regBramLine.asUInt()
+      io.bramCmd.req.addr := regBramRowCnt
+
+      regBramRowCnt := regBramRowCnt + 1.U
+      regElCnt := 0.U
+
+      when (regNRowsReceived === regNRows) {
+        regState := sIdle
+        io.finished := true.B
+      }.otherwise{
+        regState := sRunning
+      }
+
     }
   }
 }
