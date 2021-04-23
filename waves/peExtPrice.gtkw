@@ -1,0 +1,55 @@
+[*]
+[*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
+[*] Mon Apr 19 13:47:33 2021
+[*]
+[dumpfile] "/home/erling/dev/chisel/auction-accelerator/test_run_dir/ProcessingElementExtPrice_should_Request_right_id/ProcessingElementExtPrice.vcd"
+[dumpfile_mtime] "Mon Apr 19 13:35:54 2021"
+[dumpfile_size] 2994
+[savefile] "/home/erling/dev/chisel/auction-accelerator/waves/peExtPrice.gtkw"
+[timestart] 0
+[size] 2560 1320
+[pos] -1 -1
+*-1.000000 6 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[sst_width] 640
+[signals_width] 508
+[sst_expanded] 1
+[sst_vpaned_height] 394
+@28
+ProcessingElementExtPrice.clock
+ProcessingElementExtPrice.regState[1:0]
+@22
+ProcessingElementExtPrice.io_PEResultOut_bits_benefit[31:0]
+@28
+ProcessingElementExtPrice.io_PEResultOut_bits_id[2:0]
+@29
+ProcessingElementExtPrice.io_price_valid
+@28
+ProcessingElementExtPrice.io_PEResultOut_bits_last
+ProcessingElementExtPrice.io_PEResultOut_ready
+ProcessingElementExtPrice.io_PEResultOut_valid
+ProcessingElementExtPrice.io_price_ready
+ProcessingElementExtPrice.io_price_req_addr[2:0]
+@22
+ProcessingElementExtPrice.io_price_req_wdata[31:0]
+@28
+ProcessingElementExtPrice.io_price_req_wen
+@22
+ProcessingElementExtPrice.io_price_rsp_rdata[31:0]
+@28
+ProcessingElementExtPrice.io_rewardIn_bits_idx[2:0]
+ProcessingElementExtPrice.io_rewardIn_bits_last
+@22
+ProcessingElementExtPrice.io_rewardIn_bits_reward[31:0]
+@28
+ProcessingElementExtPrice.io_rewardIn_ready
+ProcessingElementExtPrice.io_rewardIn_valid
+@22
+ProcessingElementExtPrice.regBenefit[31:0]
+@28
+ProcessingElementExtPrice.regIdx[2:0]
+ProcessingElementExtPrice.regLast
+@22
+ProcessingElementExtPrice.regPrice[31:0]
+ProcessingElementExtPrice.regReward[31:0]
+[pattern_trace] 1
+[pattern_trace] 0

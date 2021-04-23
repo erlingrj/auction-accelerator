@@ -14,6 +14,21 @@ The first is a parallell processing parallell Search the second is sequential an
 
 ## Log
 
+## April 23
+- Passes all Verilator tests approx 10x improvement over SW (thats not that impressive though, but we are dealing with simple problems)
+- Does not meet timing: There are problems in DRAM2BRAM worst path is:
+Queue.deq -> regElCnt (update) -> regBramLine
+
+We need a quite substantial rewrite of DRAM2BRAM we should introduce a pipeline there:
+Stage 1:
+read DRAM word, split into BramEls with col-info
+-> rowFinishd++
+stage 2:
+-> Do popcount + Compactor and remaining
+
+
+
+
 ## April 20
 - Upgrade DRAM2BRAM module, now rows are bram-word aligned also
 - BramController needs tests (Boiler plate is done)

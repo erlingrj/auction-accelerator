@@ -1,0 +1,170 @@
+[*]
+[*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
+[*] Wed Apr 21 14:13:55 2021
+[*]
+[dumpfile] "/home/erling/dev/chisel/auction-accelerator/test_run_dir/DRAM2BRAM_should_correctly_transform_simple_example/DRAM2BRAM.vcd"
+[dumpfile_mtime] "Wed Apr 21 14:13:07 2021"
+[dumpfile_size] 94821
+[savefile] "/home/erling/dev/chisel/auction-accelerator/waves/dram2bram.gtkw"
+[timestart] 0
+[size] 2560 1320
+[pos] -1 -1
+*-3.370838 41 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] DRAM2BRAM.
+[sst_width] 393
+[signals_width] 486
+[sst_expanded] 1
+[sst_vpaned_height] 284
+@28
+DRAM2BRAM.clock
+DRAM2BRAM.io_dramRsp_ready
+DRAM2BRAM.io_dramRsp_valid
+@22
+DRAM2BRAM.io_dramRsp_bits_readData[63:0]
+DRAM2BRAM.regElCnt[2:0]
+DRAM2BRAM.regNBytesInRow[8:0]
+DRAM2BRAM.regNRowsReceived[5:0]
+DRAM2BRAM.regBytesLeftInRow[31:0]
+@c00200
+-agentRowAddress
+@1401200
+-agentRowAddress
+@23
+DRAM2BRAM.io_agentRowAddress_req_bits_addr[7:0]
+DRAM2BRAM.io_agentRowAddress_req_bits_wdata_length[5:0]
+DRAM2BRAM.io_agentRowAddress_req_bits_wdata_rowAddr[6:0]
+@29
+DRAM2BRAM.io_agentRowAddress_req_bits_wen
+DRAM2BRAM.io_agentRowAddress_req_ready
+DRAM2BRAM.io_agentRowAddress_req_valid
+@23
+DRAM2BRAM.io_agentRowAddress_rsp_bits_rdata_length[5:0]
+DRAM2BRAM.io_agentRowAddress_rsp_bits_rdata_rowAddr[6:0]
+@29
+DRAM2BRAM.io_agentRowAddress_rsp_ready
+DRAM2BRAM.io_agentRowAddress_rsp_valid
+@c00200
+-DRAM2BRAM.io_bramCmd_req_writeData
+@1401200
+-group_end
+@28
+DRAM2BRAM.io_bramCmd_req_writeEn
+@800200
+-regBramLine
+@22
+DRAM2BRAM.regBramLine_els_0_value[7:0]
+DRAM2BRAM.regBramLine_els_0_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_0_last
+@22
+DRAM2BRAM.regBramLine_els_1_value[7:0]
+DRAM2BRAM.regBramLine_els_1_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_1_last
+@22
+DRAM2BRAM.regBramLine_els_2_value[7:0]
+DRAM2BRAM.regBramLine_els_2_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_2_last
+@22
+DRAM2BRAM.regBramLine_els_3_value[7:0]
+DRAM2BRAM.regBramLine_els_3_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_3_last
+@22
+DRAM2BRAM.regBramLine_els_4_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_4_last
+@22
+DRAM2BRAM.regBramLine_els_4_value[7:0]
+DRAM2BRAM.regBramLine_els_5_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_5_last
+@22
+DRAM2BRAM.regBramLine_els_5_value[7:0]
+DRAM2BRAM.regBramLine_els_6_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_6_last
+@22
+DRAM2BRAM.regBramLine_els_6_value[7:0]
+DRAM2BRAM.regBramLine_els_7_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_7_last
+@22
+DRAM2BRAM.regBramLine_els_7_value[7:0]
+@1000200
+-regBramLine
+@28
+DRAM2BRAM.clock
+DRAM2BRAM.regState[1:0]
+DRAM2BRAM.io_dramRsp_ready
+DRAM2BRAM.io_dramRsp_valid
+@22
+DRAM2BRAM.io_dramRsp_bits_readData[63:0]
+DRAM2BRAM.regElCnt[2:0]
+DRAM2BRAM.regNBytesInRow[8:0]
+DRAM2BRAM.regNRowsReceived[5:0]
+DRAM2BRAM.regBytesLeftInRow[31:0]
+@800200
+-agentRowAddress
+@1000200
+-agentRowAddress
+@22
+DRAM2BRAM.regAgentRowInfo_length[5:0]
+DRAM2BRAM.regAgentRowCnt[6:0]
+@c00200
+-DRAM2BRAM.io_bramCmd_req_writeData
+@1401200
+-group_end
+@28
+DRAM2BRAM.io_bramCmd_req_writeEn
+@800200
+-regBramLine
+@22
+DRAM2BRAM.regBramLine_els_0_value[7:0]
+DRAM2BRAM.regBramLine_els_0_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_0_last
+@22
+DRAM2BRAM.regBramLine_els_1_value[7:0]
+DRAM2BRAM.regBramLine_els_1_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_1_last
+@22
+DRAM2BRAM.regBramLine_els_2_value[7:0]
+DRAM2BRAM.regBramLine_els_2_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_2_last
+@22
+DRAM2BRAM.regBramLine_els_3_value[7:0]
+DRAM2BRAM.regBramLine_els_3_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_3_last
+@22
+DRAM2BRAM.regBramLine_els_4_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_4_last
+@22
+DRAM2BRAM.regBramLine_els_4_value[7:0]
+DRAM2BRAM.regBramLine_els_5_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_5_last
+@22
+DRAM2BRAM.regBramLine_els_5_value[7:0]
+DRAM2BRAM.regBramLine_els_6_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_6_last
+@22
+DRAM2BRAM.regBramLine_els_6_value[7:0]
+DRAM2BRAM.regBramLine_els_7_col[5:0]
+@28
+DRAM2BRAM.regBramLine_els_7_last
+@22
+DRAM2BRAM.regBramLine_els_7_value[7:0]
+@1000200
+-regBramLine
+@28
+DRAM2BRAM.rowFinished
+DRAM2BRAM.newRowStarted
+[pattern_trace] 1
+[pattern_trace] 0
