@@ -4,3 +4,6 @@
 [submodule "auction-hw-driver"]
 	path = auction-hw-driver
 	url = git@github.com:erlingrj/auction-hw-driver.git
+[submodule "src/main/resources/auction-cpp"]
+	path = src/main/resources/auction-cpp
+	url = git@github.com:erlingrj/auction-cpp.git
