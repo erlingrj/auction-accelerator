@@ -291,7 +291,7 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
               bramLine.els(i) := regBramLine.els(i)
             }.otherwise {
               if (i < 64/p.bitWidth) {
-                bramLine.els(i) := valids(i)
+                bramLine.els(i) := valids(i.U - regElCnt)
               }
             }
           }

@@ -129,7 +129,6 @@ it should "Initialize correctly" in {
       }.join()
     }
   }
-
   it should "forward correct data to datadist" in {
     test(new BramController(ap)) { c =>
       initClocks(c)

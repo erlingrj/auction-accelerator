@@ -41,7 +41,7 @@ PLATFORM ?= ZedBoard
 URI = $($(PLATFORM)_URI)
 NPE ?= 8
 BW ?= 8
-MPS ?= 16
+MPS ?= 64
 # overlay dims
 #M ?= 2
 #K ?= 64
@@ -74,8 +74,9 @@ BUILD_DIR_VERILATOR := $(BUILD_DIR)/verilator
 #HLS_SRC_DIR := $(TOP)/src/main/resources/hls
 #HLSTEST_SRC_DIR := $(TOP)/src/main/resources/hls/test
 VIVADO_IN_PATH := $(shell command -v vivado 2> /dev/null)
+AUCTION_CPP_DIR := $(TOP)/src/main/resources/auction-cpp
 #CPPTEST_SRC_DIR := $(TOP)/src/test/cosim
-#HW_VERILOG := $(BUILD_DIR_VERILOG)/$(PLATFORM)Wrapper.v
+HW_VERILOG := $(BUILD_DIR_VERILOG)/$(PLATFORM)Wrapper.v
 #HW_TO_SYNTH ?= $(HW_VERILOG) $(BUILD_DIR_VERILOG)/ExecInstrGen.v
 #HW_SW_DRIVER ?= BitSerialMatMulAccel.hpp
 #PLATFORM_SCRIPT_DIR := $(TOP)/src/main/script/$(PLATFORM)/target
@@ -99,7 +100,12 @@ CC_FLAG =
 verilator:
 	# Generate Verilog
 	$(SBT) $(SBT_FLAGS) "runMain auction.VerilatorMain $(BUILD_DIR_VERILATOR) $(NPE) $(BW) $(MPS)"
-	cd $(BUILD_DIR_VERILATOR) && ./verilator-build.sh
+	# Copy auction-cpp over there
+	cp -r $(AUCTION_CPP_DIR) $(BUILD_DIR_VERILATOR)
+	cp $(TOP)/src/main/resources/Makefile $(BUILD_DIR_VERILATOR)
+
+
+	cd $(BUILD_DIR_VERILATOR) && make
 
 
 
@@ -133,10 +139,10 @@ Characterize%:
 #	$(SBT) $(SBT_FLAGS) "runMain bismo.DriverMain $(PLATFORM) $(BUILD_DIR_HWDRV) $(TIDBITS_REGDRV_ROOT)"
 
 # generate Verilog for the Chisel accelerator
-#hw_verilog: $(HW_VERILOG)
+hw_verilog: $(HW_VERILOG)
 
-#$(HW_VERILOG):
-#	$(SBT) $(SBT_FLAGS) "runMain bismo.ChiselMain $(PLATFORM) $(BUILD_DIR_VERILOG) $(M) $(K) $(N) $(LMEM) $(RMEM)"
+$(HW_VERILOG):
+	$(SBT) $(SBT_FLAGS) "runMain auction.ChiselMain $(PLATFORM) $(BUILD_DIR_VERILOG) $(NPE) $(BW) $(MPS)"
 
 #hls: $(BUILD_DIR_VERILOG)/ExecInstrGen.v
 

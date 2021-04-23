@@ -94,16 +94,21 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
           io.agentRowAddrReq.rsp.ready := true.B
           io.agentRowAddrReq.req.bits.addr := agentReq.agent
           val agentRowInfo = io.agentRowAddrReq.rsp.bits.rdata.asTypeOf(new AgentRowInfo(p))
-          regNumBramWordsLeft := agentRowInfo.length
-          regAgentRowAddr := agentRowInfo.rowAddr
 
-          // Make request to BRAM
-          io.bramReq.req.writeEn := false.B
-          io.bramReq.req.addr := agentRowInfo.rowAddr
+          when(agentRowInfo.length > 0.U) {
 
-          // Prepare the rsp queue for a Bram rsp next cycle
-          regBramRspValid := true.B
-          regState := sReading
+            regNumBramWordsLeft := agentRowInfo.length
+            regAgentRowAddr := agentRowInfo.rowAddr
+
+            // Make request to BRAM
+            io.bramReq.req.writeEn := false.B
+            io.bramReq.req.addr := agentRowInfo.rowAddr
+
+            // Prepare the rsp queue for a Bram rsp next cycle
+            regBramRspValid := true.B
+            regState := sReading
+          }
+
         }
         }
       }

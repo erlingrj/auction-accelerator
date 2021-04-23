@@ -1,81 +1,113 @@
 #include <iostream>
+#include <chrono>
 using namespace std;
+using namespace std::chrono;
 
-#include "Auction.hpp"
+#include "AuctionBram.hpp"
 #include "platform.h"
 
+#include "auction-cpp/utils.hpp"
+#include "auction-cpp/AuctionSolver.hpp"
+#include <experimental/filesystem>
+
+#define REW_MAT_BUF_SIZE 16384
 
 double sc_time_stamp() {
     return 0;
 }
 
-bool Run_Auction(WrapperRegDriver * platform) {
-	Auction t(platform);
+
+bool run_Auction(WrapperRegDriver * platform, std::vector<std::vector<int>> reward_mat) {
+  AuctionBram t(platform);
+
+  // 1. Calculate result in SW
+  auto start = high_resolution_clock::now();
+  auto object_assignments = auction(reward_mat, 1);
+  auto stop= high_resolution_clock::now();
+  auto sw_duration = duration_cast<nanoseconds>(stop-start);
 
 
-	uint8_t rew_mat[160] = {
-    7,   51,  52,  87, 38,  60,  74,  66,
-    0,   20,   0,   0,   0,   0,   0,   0,
-    50,  12,   0,  64,   8,  53,   0,  46,
-    76,  42,   0,   0,   0,   0,   0,   0,
-    27,  77,   0,  18,  22,  48,  44,  13,
-    0,  57,   0,   0,   0,   0,   0,   0,
-    62,   0,   3,   8,   5,   6,  14,   0,
-    26,  39,   0,   0,   0,   0,   0,   0,
-    0,   97,   0,   5,  13,   0,  41,  31,
-    62,  48,   0,   0,   0,   0,   0,   0,
-    79,  68,   0,   0,  15,  12,  17,  47,
-    35,  43,   0,   0,   0,   0,   0,   0,
-    76,  99,  48,  27,  34,   0,   0,   0,
-    28,   0,   0,   0,   0,   0,   0,   0,
-    0,   20,   9,  27,  46,  15,  84,  19,
-    3,  24,   0,   0,   0,   0,   0,   0,
-    56,  10,  45,  39,   0,  93,  67,  79,
-    19,  38,   0,   0,   0,   0,   0,   0,
-    27,   0,  39,  53,  46,  24,  69,  46,
-    23,  1,   0,   0,   0,   0,   0,   0,
-    };
-    uint32_t res[20];
-    unsigned int bufsize_res = 20 * sizeof(res[0]);
+  uint8_t rew_mat_aligned[REW_MAT_BUF_SIZE];
+  int size = align_to_rows(reward_mat, (uint8_t *) &rew_mat_aligned);
 
-    unsigned int bufsize = 160 * sizeof(rew_mat[0]);
+  int n_rows = reward_mat.size();
+  int n_cols = reward_mat[0].size();
 
-
-    void * accelBuf = platform->allocAccelBuffer(bufsize);
-    platform->copyBufferHostToAccel(rew_mat, accelBuf, bufsize);
-
-    void * accelResBuf = platform->allocAccelBuffer(bufsize_res);
-    t.set_rfIn_baseAddr((AccelDblReg) accelBuf);
-    t.set_rfIn_baseAddrRes((AccelDblReg) accelResBuf);
-    t.set_rfIn_nAgents(10);
-    t.set_rfIn_nObjects(10);
-
-    t.set_rfIn_start(1);
-    t.set_rfIn_start(0);
-
-    while (t.get_rfOut_finished() != 1);
-    cout <<"Cycles=" <<t.get_rfOut_cycleCount() <<endl;
-    platform->copyBufferAccelToHost(accelResBuf, res, bufsize_res);
-
-    for (int i = 0; i<20; i++) {
-        cout <<"i=" <<i <<" res=" <<res[i] <<endl;
+  bool print_rew_mat = false;
+  if (print_rew_mat) {
+    for (int i = 0; i< size/8; i++) {
+      for (int j = 0; j< n_cols; j++) {
+        cout <<rew_mat_aligned[i*n_cols + j] <<" ";
+      }
+      cout <<endl;
     }
+  }
 
 
-    platform->deallocAccelBuffer(accelBuf);
-    platform->deallocAccelBuffer(accelResBuf);
+  uint64_t res[2*n_cols];
+  unsigned int bufsize_res = 2*n_cols * sizeof(res[0]);
 
-    return 0;
+  unsigned int bufsize = size * sizeof(rew_mat_aligned[0]);
+
+
+  void * accelBuf = platform->allocAccelBuffer(bufsize);
+  platform->copyBufferHostToAccel(rew_mat_aligned, accelBuf, bufsize);
+
+  void * accelResBuf = platform->allocAccelBuffer(bufsize_res);
+  t.set_rfIn_baseAddr((AccelDblReg) accelBuf);
+  t.set_rfIn_baseAddrRes((AccelDblReg) accelResBuf);
+  t.set_rfIn_nAgents(n_rows);
+  t.set_rfIn_nObjects(n_cols);
+
+  t.set_rfIn_start(1);
+  t.set_rfIn_start(0);
+
+  while (t.get_rfOut_finished() != 1);
+  cout <<"Cycles=" <<t.get_rfOut_cycleCount() <<endl;
+  cout <<"SW=" <<sw_duration.count() <<" ns" <<endl;
+  platform->copyBufferAccelToHost(accelResBuf, res, bufsize_res);
+
+  // Verify that object assignment matches
+  bool valid = true;
+  for (int i = 0; i<n_cols; i++) {
+    if(res[i] != object_assignments[i]) {
+      if (res[i] != 0 && object_assignments[i] != -1) {
+        cout <<"ERROR: mismatch in object assignment result for object-" <<i <<"  SW=" <<object_assignments[i] <<" HW=" <<res[i] <<endl;
+        valid = false;
+      }
     }
+  }
+
+  cout <<"SW Assignments= ";
+  for (auto el: object_assignments) {
+    cout <<el <<" ";
+  }
+
+  cout <<endl;
+  platform->deallocAccelBuffer(accelBuf);
+  platform->deallocAccelBuffer(accelResBuf);
+
+  return valid;
+}
 
 int main(int argc, char** argv)
 {
-    cout <<"Running Auction Test program" <<endl;
+    cout <<"Running Auction Accelerator" <<endl;
+    int epsilon = 1;
+    string path = "auction-cpp/resources/test_problems8bit";
+    for (const auto & entry : experimental::filesystem::directory_iterator(path)) {
 
-    WrapperRegDriver * platform = initPlatform();
-    Run_Auction(platform);
-    deinitPlatform(platform);
-
+      auto p = string(entry.path().string());
+//      if (p == "auction-cpp/resources/test_problems8bit/rewards1828.csv") {
+        auto rew = parse_csv(p);
+        cout <<p <<" rows=" <<rew.size() <<" cols=" <<rew[0].size() <<endl;
+        WrapperRegDriver * platform = initPlatform();
+        if (!run_Auction(platform, rew)) {
+          return 1;
+        }
+        deinitPlatform(platform);
+//      }
+    }
 
     return 0;
 }
