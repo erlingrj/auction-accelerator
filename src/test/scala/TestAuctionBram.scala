@@ -48,6 +48,52 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
 
   behavior of "AuctionBram"
 
+  it should "10x10 with 8PEs" in {
+    val ap = new AuctionParams(
+      nPEs = 8, bitWidth = 8, memWidth = 64, maxProblemSize = 16
+    )
+
+    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
+      val nAgents = 10
+      val nObjects = 10
+      val baseAddr = 0
+      val baseAddrRes = 1024
+      c.writeReg("rfIn_nAgents", nAgents.U)
+      c.writeReg("rfIn_nObjects", nObjects.U)
+      c.writeReg("rfIn_baseAddr", baseAddr.U)
+      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
+
+      rewMatBig.map{ row =>
+        row.map{v =>
+          print(f"$v%x ")
+        }
+        println("")
+      }
+
+      val rewardArr = generateMemoryArray(rewMatBig, 8)
+      println(rewardArr)
+      c.arrayToMem(baseAddr, rewardArr)
+      c.writeReg("rfIn_start", 1.U)
+      c.clock.step(1)
+      c.writeReg("rfIn_start", 0.U)
+
+      var cnt = 0
+      while (c.readReg("rfOut_finished").litValue != 1 &&
+        cnt < 1000) {
+
+        c.clock.step()
+        cnt = cnt + 1
+      }
+      c.expectReg("rfOut_finished", 1.U)
+
+      val assignments = Seq(3, 4, 6, 0, 9, 8, 7, 5, 1, 2)
+
+      for (j <- 0 until nObjects) {
+        c.expectMem(baseAddrRes + 8 * j, assignments(j).U)
+      }
+      // TODO: check prices
+    }
+  }
   it should "TesterWrapper mem iface" in {
     test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
       c.writeReg("rfIn_nAgents", 4.U)
@@ -220,45 +266,6 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
     }
   }
 
-  it should "10x10 with 8PEs" in {
-    val ap = new AuctionParams(
-      nPEs = 8, bitWidth = 8, memWidth = 64, maxProblemSize = 16
-    )
-
-    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
-      val nAgents = 10
-      val nObjects = 10
-      val baseAddr = 0
-      val baseAddrRes = 1024
-      c.writeReg("rfIn_nAgents", nAgents.U)
-      c.writeReg("rfIn_nObjects", nObjects.U)
-      c.writeReg("rfIn_baseAddr", baseAddr.U)
-      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
-
-      val rewardArr = generateMemoryArray(rewMatBig, 8)
-      println(rewardArr)
-      c.arrayToMem(baseAddr, rewardArr)
-      c.writeReg("rfIn_start", 1.U)
-      c.clock.step(1)
-      c.writeReg("rfIn_start", 0.U)
-
-      var cnt = 0
-      while (c.readReg("rfOut_finished").litValue != 1 &&
-        cnt < 1000) {
-
-        c.clock.step()
-        cnt = cnt + 1
-      }
-      c.expectReg("rfOut_finished", 1.U)
-
-      val assignments = Seq(3, 4, 6, 0, 9, 8, 7, 5, 1, 2)
-
-      for (j <- 0 until nObjects) {
-        c.expectMem(baseAddrRes + 8 * j, assignments(j).U)
-      }
-      // TODO: check prices
-    }
-  }
 
   it should "10x10 with 4PEs" in {
     val ap = new AuctionParams(

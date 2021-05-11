@@ -109,10 +109,10 @@ class ControllerBram(ap: ControllerParams) extends Module {
       // Then we check for finished condition
       when (!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid && regBackDownCount === 0.U) {
         regState := sWriteBack
-      }.otherwise {
-        when (regBackDownCount > 0.U) {
+      }.elsewhen(!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid) {
           regBackDownCount := regBackDownCount - 1.U
-        }
+        }.otherwise {
+        regBackDownCount := constBackDownCount.U
       }
     }
     is (sWriteBack) {

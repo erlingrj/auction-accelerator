@@ -54,4 +54,17 @@ object Compactor {
   }
 }
 
+object ParseBramLine {
+  def apply(line: BigInt, n: Int, valBits: Int, colBits: Int): Unit = {
+    var line_ = line
+    for (i <- 0 until n) {
+      val col = line_ & ((1<<colBits)-1)
+      line_ = line_ >> colBits
 
+      val value = line_ & ((1<<valBits)-1)
+      line_ = line_ >> valBits
+
+      println(f"val=$value%X col=$col")
+    }
+  }
+}

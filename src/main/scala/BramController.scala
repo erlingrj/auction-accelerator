@@ -68,7 +68,7 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
   // Registers
   val regNumBramWordsLeft = RegInit(0.U(p.agentWidth.W))
-  val regAgentRowAddr = RegInit(0.U(p.agentWidth.W))
+  val regAgentRowAddr = RegInit(0.U(p.bramAddrBits.W))
   val regBramRspValid = RegInit(false.B)
   val regAgentReq = RegInit(0.U.asTypeOf(new AgentInfo(p.agentWidth)))
   regBramRspValid := false.B
