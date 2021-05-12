@@ -26,17 +26,17 @@ class ProcessingElementParams(
   def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs,0 ,1,agentWidth)
 }
 
-class PEExtPriceRewardIO(private val ap: ProcessingElementParams) extends Bundle {
+class PERewardIO(private val ap: ProcessingElementParams) extends Bundle {
   val reward = UInt(ap.bitWidth.W)
   val idx = UInt(ap.agentWidth.W)
   val last = Bool()
 }
 
-class ProcessingElementExtPriceIO(ap: ProcessingElementParams) extends Bundle {
+class ProcessingElementIO(ap: ProcessingElementParams) extends Bundle {
 
   val priceStore = new RegStoreTransaction(0.U(ap.bitWidth.W),ap.priceRegStoreParams)
-  val rewardIn = Flipped(Decoupled(new PEExtPriceRewardIO(ap)))
-  val stP = new SearchTaskParams(
+  val rewardIn = Flipped(Decoupled(new PERewardIO(ap)))
+  val stP = new SearchTreeParams(
     bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs
   )
   val PEResultOut = Decoupled(new PEResult(stP))
@@ -51,8 +51,8 @@ class ProcessingElementExtPriceIO(ap: ProcessingElementParams) extends Bundle {
   }
 }
 
-class ProcessingElementExtPrice(ap: ProcessingElementParams) extends MultiIOModule {
-  val io = IO(new ProcessingElementExtPriceIO(ap))
+class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
+  val io = IO(new ProcessingElementIO(ap))
 
   val sIdle :: sProcess  :: sFinished :: sStall :: Nil = Enum(4)
 

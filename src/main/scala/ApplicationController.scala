@@ -9,7 +9,7 @@ import fpgatidbits.synthutils.PrintableParam
 // It monitors the communication between Accountant and MemoryController and figures out when we are done
 // It signals the Accountant to write all data to memory and then updates reg file with info that we are done
 
-class ControllerParams(
+class ApplicationControllerParams(
   val bitWidth: Int,
   val nPEs: Int,
   val mrp: MemReqParams,
@@ -31,7 +31,8 @@ class ControllerParams(
 }
 
 
-class ControllerBramIO(ap: ControllerParams) extends Bundle {
+
+class ApplicationControllerIO(ap: ApplicationControllerParams) extends Bundle {
 
   val rfCtrl  = new AppControlSignals()
   val rfInfo = new AppInfoSignals()
@@ -72,8 +73,8 @@ class ControllerBramIO(ap: ControllerParams) extends Bundle {
 }
 
 
-class ControllerBram(ap: ControllerParams) extends Module {
-  val io = IO(new ControllerBramIO(ap))
+class ApplicationController(ap: ApplicationControllerParams) extends Module {
+  val io = IO(new ApplicationControllerIO(ap))
   io.driveDefaults()
 
   val constBackDownCount = 5

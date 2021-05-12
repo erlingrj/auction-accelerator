@@ -51,7 +51,7 @@ class AppInfoSignals extends Bundle {
 
 
 // read and sum a contiguous stream of 32-bit uints from main memory
-class AuctionBram(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccelerator(p) {
+class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccelerator(p) {
   val numMemPorts = 1
 
   val io = IO(new GenericAcceleratorIF(numMemPorts, p) {
@@ -73,20 +73,20 @@ class AuctionBram(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAc
   )
   val memController = Module(new BramController(mcP))
 
-  val cP = new ControllerParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+  val cP = new ApplicationControllerParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, mrp = mp
   )
-  val controller = Module(new ControllerBram(cP))
+  val controller = Module(new ApplicationController(cP))
 
   val aP = new AccountantParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, mrp = mp
   )
-  val accountant = Module(new AccountantExtPricePipelined(aP))
+  val accountant = Module(new Accountant(aP))
 
   val ddP = new DataDistributorParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, memWidth = mp.dataWidth
   )
-  val dataMux = Module(new DataDistributorSparse(ddP))
+  val dataMux = Module(new DataDistributor(ddP))
 
   // create some queues
   val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
@@ -104,7 +104,7 @@ class AuctionBram(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAc
 
 
   // dram2bram reader
-  val dram2bram = Module(new DRAM2BRAM(p = mcP))
+  val dram2bram = Module(new Dram2Bram(p = mcP))
   dram2bram.io.dramReq <> io.memPort(0).memRdReq
   dram2bram.io.dramRsp <> io.memPort(0).memRdRsp
   dram2bram.io.bramCmd <> bram.io.write
@@ -141,13 +141,13 @@ class AuctionBram(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAc
   )
 
   val pes = for (i <- 0 until ap.nPEs) yield {
-    Module(new ProcessingElementExtPrice(peP))
+    Module(new ProcessingElement(peP))
   }
 
-  val stP = new SearchTaskParams(
+  val stP = new SearchTreeParams(
     bitWidth = ap.bitWidth, nPEs = ap.nPEs, maxProblemSize = ap.maxProblemSize
   )
-  val search = Module(new SearchTaskPar(stP))
+  val search = Module(new SearchTree(stP))
 
 
   memController.io.dataDistOut <> dataMux.io.bramWordIn

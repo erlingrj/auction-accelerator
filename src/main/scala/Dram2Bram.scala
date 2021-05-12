@@ -30,7 +30,7 @@ object AgentRowInfo {
   }
 }
 
-class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
+class Dram2BramIO(val p: MemCtrlParams) extends Bundle {
   // Interface to DRAM
   val dramReq = Decoupled(new GenericMemoryRequest(p.mrp))
   val dramRsp = Flipped(Decoupled(new GenericMemoryResponse(p.mrp)))
@@ -64,8 +64,8 @@ class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
 }
 
 // Horrible class. Dont even bother looking
-class DRAM2BRAM(val p: MemCtrlParams) extends Module {
-  val io = IO(new DRAM2BRAMIO(p))
+class Dram2Bram(val p: MemCtrlParams) extends Module {
+  val io = IO(new Dram2BramIO(p))
   io.driveDefaults()
   require(p.bitWidth >= 8)
   //require(p.nPEs >= 8)

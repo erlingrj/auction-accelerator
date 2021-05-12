@@ -7,7 +7,7 @@ import fpgatidbits.PlatformWrapper._
 
 import fpgatidbits.PlatformWrapper.GenericAccelImplicits._
 
-class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers {
+class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val ap = new AuctionParams(
     nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 8
@@ -53,7 +53,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
       nPEs = 8, bitWidth = 8, memWidth = 64, maxProblemSize = 16
     )
 
-    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
       val nAgents = 10
       val nObjects = 10
       val baseAddr = 0
@@ -95,7 +95,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
     }
   }
   it should "TesterWrapper mem iface" in {
-    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
       c.writeReg("rfIn_nAgents", 4.U)
       c.writeReg("rfIn_nObjects", 4.U)
       c.writeReg("rfIn_baseAddr", 0.U)
@@ -117,7 +117,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
   }
 
   it should "work on multiple simple 4x4 example" in {
-    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
       c.writeReg("rfIn_nAgents", 4.U)
       c.writeReg("rfIn_nObjects", 4.U)
       c.writeReg("rfIn_baseAddr", 0.U)
@@ -181,7 +181,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
     }
   }
   it should "work on simple 4x4 example" in {
-    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
       c.writeReg("rfIn_nAgents", 4.U)
       c.writeReg("rfIn_nObjects", 4.U)
       c.writeReg("rfIn_baseAddr", 0.U)
@@ -224,7 +224,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
 
 
   it should "work on more complicated example" in {
-    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
       val nAgents = 4
       val nObjects = 5
       val baseAddr = 0
@@ -272,7 +272,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
       nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 16
     )
 
-    test(new TesterWrapper({ p => new AuctionBram(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
       val nAgents = 10
       val nObjects = 10
       val baseAddr = 0

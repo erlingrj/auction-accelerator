@@ -6,13 +6,13 @@ import org.scalatest._
 import chiseltest._
 import chisel3._
 
-class TestProcessingElementExtPrice extends FlatSpec with ChiselScalatestTester with Matchers {
+class TestProcessingElement extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val ap = new ProcessingElementParams(
     nPEs = 4, bitWidth = 32, maxProblemSize = 16
   )
 
-  def initClocks(c: ProcessingElementExtPrice): Unit = {
+  def initClocks(c: ProcessingElement): Unit = {
     c.io.rewardIn.initSource.setSourceClock(c.clock)
     c.io.PEResultOut.initSink.setSinkClock(c.clock)
     c.io.priceStore.req.initSink.setSinkClock(c.clock)
@@ -22,7 +22,7 @@ class TestProcessingElementExtPrice extends FlatSpec with ChiselScalatestTester 
 
   behavior of "ProcessingElementExtPrice"
   it should "Initialize correctly" in {
-    test(new ProcessingElementExtPrice(ap)) { c =>
+    test(new ProcessingElement(ap)) { c =>
       c.io.PEResultOut.ready.poke(true.B)
       c.io.PEResultOut.valid.expect(false.B)
       c.io.priceStore.rsp.valid.expect(false.B)
@@ -30,7 +30,7 @@ class TestProcessingElementExtPrice extends FlatSpec with ChiselScalatestTester 
     }
   }
   it should "Do right calc" in {
-    test(new ProcessingElementExtPrice(ap)) { c =>
+    test(new ProcessingElement(ap)) { c =>
       initClocks(c)
 
         fork {

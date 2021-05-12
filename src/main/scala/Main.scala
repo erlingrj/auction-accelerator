@@ -21,7 +21,7 @@ object Settings {
   type AccelMap = Map[String, AccelInstFxn]
 
   def makeInstFxn(myP: AuctionParams) : AccelInstFxn = {
-    return { (p: PlatformWrapperParams) => new AuctionBram(p, myP)}
+    return { (p: PlatformWrapperParams) => new Auction(p, myP)}
   }
 
   def writeVerilogToFile(verilog: String, path: String) = {
@@ -89,11 +89,11 @@ object CharacterizeMain {
 
   val mp = new MemReqParams(32, 64, 6, 1, true)
 
-  val instFxn_Accountant = {(ap: AccountantParams) => new AccountantExtPricePipelined(ap)}
+  val instFxn_Accountant = {(ap: AccountantParams) => new Accountant(ap)}
   val aP = new AccountantParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )
-  val instFxn_PE = {(ap: ProcessingElementParams) => new ProcessingElementExtPrice(ap)}
+  val instFxn_PE = {(ap: ProcessingElementParams) => new ProcessingElement(ap)}
   val peP = new ProcessingElementParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128
   )
@@ -101,23 +101,23 @@ object CharacterizeMain {
   val mcP = new MemCtrlParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )
-  val instFxn_SearchTask= {(ap: SearchTaskParams) => new SearchTaskPar(ap)}
-  val stP = new SearchTaskParams(
+  val instFxn_SearchTask= {(ap: SearchTreeParams) => new SearchTree(ap)}
+  val stP = new SearchTreeParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128
   )
-  val instFxn_DataDistributor = {(ap: DataDistributorParams) => new DataDistributorSparse(ap)}
+  val instFxn_DataDistributor = {(ap: DataDistributorParams) => new DataDistributor(ap)}
   val ddP = new DataDistributorParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, memWidth = 64
   )
-  val instFxn_Controller= {(ap: ControllerParams) => new ControllerBram(ap)}
-  val cP = new ControllerParams(
+  val instFxn_Controller= {(ap: ApplicationControllerParams) => new ApplicationController(ap)}
+  val cP = new ApplicationControllerParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )
 
-  val instFxn_DRAM2BRAM= {(ap: MemCtrlParams) => new DRAM2BRAM(ap)}
+  val instFxn_DRAM2BRAM= {(ap: MemCtrlParams) => new Dram2Bram(ap)}
 
 
-  val instFxn_Auction= {(ap: AuctionParams) => new AuctionBram(ZedBoardParams, ap)}
+  val instFxn_Auction= {(ap: AuctionParams) => new Auction(ZedBoardParams, ap)}
   val auctionP = new AuctionParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, memWidth = 64
   )

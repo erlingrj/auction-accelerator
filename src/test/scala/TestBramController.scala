@@ -7,13 +7,13 @@ import chisel3.experimental.BundleLiterals._
 import chiseltest.experimental.TestOptionBuilder._
 import chiseltest.internal.VerilatorBackendAnnotation
 import fpgatidbits.dma._
-import auction.TestDRAM2BRAM
+import auction.TestDram2Bram
 
 
 
 class TestBramController extends FlatSpec with ChiselScalatestTester with Matchers {
 
-  val t = new TestDRAM2BRAM
+  val t = new TestDram2Bram
 
   val verilator = Seq(VerilatorBackendAnnotation)
 

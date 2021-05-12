@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import fpgatidbits.synthutils.PrintableParam
 
-class SearchTaskParams(
+class SearchTreeParams(
   val bitWidth: Int,
   val nPEs: Int,
   val maxProblemSize: Int
@@ -24,12 +24,12 @@ class SearchTaskParams(
   def agentWidth = log2Ceil(maxProblemSize)
 }
 
-class SearchTaskResultPar(private val ap: SearchTaskParams) extends Bundle {
+class SearchTreeResult(private val ap: SearchTreeParams) extends Bundle {
   val winner = UInt(ap.agentWidth.W)
   val bid = UInt(ap.bitWidth.W)
 }
 
-class PEResult(private val ap: SearchTaskParams) extends Bundle {
+class PEResult(private val ap: SearchTreeParams) extends Bundle {
   val benefit = UInt(ap.bitWidth.W)
   val oldPrice = UInt(ap.bitWidth.W)
   val id = UInt(ap.agentWidth.W)
@@ -37,9 +37,9 @@ class PEResult(private val ap: SearchTaskParams) extends Bundle {
 }
 
 
-class SearchTaskParIO(ap: SearchTaskParams) extends Bundle {
+class SearchTreeIO(ap: SearchTreeParams) extends Bundle {
   val benefitIn = Vec(ap.nPEs, Flipped(Decoupled(new PEResult(ap))))
-  val resultOut = Decoupled(new SearchTaskResultPar(ap))
+  val resultOut = Decoupled(new SearchTreeResult(ap))
 
   def driveDefaults(): Unit = {
     benefitIn.map(_.ready:= false.B)
@@ -47,11 +47,11 @@ class SearchTaskParIO(ap: SearchTaskParams) extends Bundle {
     resultOut.bits.winner := 0.U
     resultOut.bits.bid := 0.U
   }
-  override def cloneType = { new SearchTaskParIO(ap).asInstanceOf[this.type] }
+  override def cloneType = { new SearchTreeIO(ap).asInstanceOf[this.type] }
 }
 
 // CompReg is the pipeline registers feeding into and out of the comparators
-class CompReg(ap: SearchTaskParams) extends Bundle {
+class CompReg(ap: SearchTreeParams) extends Bundle {
   val benefit = UInt((ap.bitWidth).W)
   val id = UInt(ap.agentWidth.W)
   val runningBid = UInt(ap.bitWidth.W)
@@ -61,10 +61,10 @@ class CompReg(ap: SearchTaskParams) extends Bundle {
 }
 
 
-class SearchTaskPar(ap: SearchTaskParams) extends MultiIOModule {
+class SearchTree(ap: SearchTreeParams) extends MultiIOModule {
   require(ap.nPEs > 2)
 
-  val io = IO(new SearchTaskParIO(ap))
+  val io = IO(new SearchTreeIO(ap))
   io.driveDefaults()
 
   def get_parent_indices(idx: Int): (Int, Int) = {

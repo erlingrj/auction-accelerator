@@ -37,15 +37,15 @@ class Assignment(private val ap: AccountantParams) extends Bundle {
   val valid = Bool()
 }
 
-class AccountantExtPriceIO(ap: AccountantParams) extends Bundle
+class AccountantIO(ap: AccountantParams) extends Bundle
 {
-  val searchTaskParams = new SearchTaskParams(
+  val searchTaskParams = new SearchTreeParams(
     bitWidth = ap.bitWidth,
     maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs
   )
 
-  val searchResultIn = Flipped(Decoupled(new SearchTaskResultPar(searchTaskParams)))
+  val searchResultIn = Flipped(Decoupled(new SearchTreeResult(searchTaskParams)))
 
   // MemoryRqeust and memoryRequested are the two interfaces to the queues to Memory Controller
   val unassignedAgents = Decoupled(new AgentInfo(ap.bitWidth))
@@ -80,9 +80,9 @@ class AccountantExtPriceIO(ap: AccountantParams) extends Bundle
   }
 }
 
-class AccountantExtPricePipelined(ap: AccountantParams) extends Module
+class Accountant(ap: AccountantParams) extends Module
 {
-  val io = IO(new AccountantExtPriceIO(ap))
+  val io = IO(new AccountantIO(ap))
   io.driveDefaults()
 
   // regAssignments holds the mapping object->agent. regAssignment[2] == 3 => obj 2 is owned by agent 3

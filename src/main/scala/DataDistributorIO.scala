@@ -31,19 +31,19 @@ class MemData(val ap: DataDistributorParams) extends Bundle {
   val last = Bool()
 }
 
-class DataDistributorSparseIO(p: DataDistributorParams) extends Bundle {
+class DataDistributorIO(p: DataDistributorParams) extends Bundle {
   val bramWordIn = Flipped(Decoupled(new BramMemWord(nPEs = p.nPEs, bitWidth = p.bitWidth, agentWidth = p.agentWidth)))
 
   val peP = new ProcessingElementParams(bitWidth = p.bitWidth,
     maxProblemSize = p.maxProblemSize, nPEs = p.nPEs
   )
 
-  val peOut = Vec(p.nPEs, Decoupled(new PEExtPriceRewardIO(peP)))
+  val peOut = Vec(p.nPEs, Decoupled(new PERewardIO(peP)))
 
 }
 
-class DataDistributorSparse(p: DataDistributorParams) extends Module {
-  val io = IO(new DataDistributorSparseIO(p))
+class DataDistributor(p: DataDistributorParams) extends Module {
+  val io = IO(new DataDistributorIO(p))
 
   val qData = Module(new Queue(new BramMemWord(p.nPEs, p.bitWidth, p.agentWidth), 8))
   io.bramWordIn <> qData.io.enq

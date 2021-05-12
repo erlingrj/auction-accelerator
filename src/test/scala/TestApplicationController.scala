@@ -9,12 +9,12 @@ import chiseltest.internal.VerilatorBackendAnnotation
 import fpgatidbits.dma._
 
 
-class TestControllerBram extends FlatSpec with ChiselScalatestTester with Matchers {
+class TestApplicationController extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val verilator = Seq(VerilatorBackendAnnotation)
 
 
-  def initClocks(c: ControllerBram): Unit = {
+  def initClocks(c: ApplicationController): Unit = {
     c.io.requestedAgentsOut.initSink().setSinkClock(c.clock)
     c.io.unassignedAgentsOut.initSink().setSinkClock(c.clock)
     c.io.requestedAgentsIn.initSource().setSourceClock(c.clock)
@@ -22,13 +22,13 @@ class TestControllerBram extends FlatSpec with ChiselScalatestTester with Matche
   }
 
   val mp = new MemReqParams(32, 64, 6, 1, true)
-  val ap = new ControllerParams(
+  val ap = new ApplicationControllerParams(
     nPEs = 4, bitWidth = 8, mrp = mp, maxProblemSize = 100
   )
   behavior of "Controller"
 
   it should "Initialize correctly" in {
-    test(new ControllerBram(ap)) { c =>
+    test(new ApplicationController(ap)) { c =>
       c.io.unassignedAgentsOut.valid.expect(false.B)
       c.io.requestedAgentsOut.valid.expect(false.B)
       c.io.doWriteBack.expect(false.B)
@@ -39,7 +39,7 @@ class TestControllerBram extends FlatSpec with ChiselScalatestTester with Matche
   }
 
   it should "pass memoryRequested through" in {
-    test(new ControllerBram(ap)) { c =>
+    test(new ApplicationController(ap)) { c =>
       initClocks(c)
       fork {
         c.io.requestedAgentsIn.enqueueNow(
@@ -60,7 +60,7 @@ class TestControllerBram extends FlatSpec with ChiselScalatestTester with Matche
   }
 
   it should "generate first set of mem reqs" in {
-    test(new ControllerBram(ap)) { c =>
+    test(new ApplicationController(ap)) { c =>
       initClocks(c)
       val nAgents = 90
       val nObjects = 70

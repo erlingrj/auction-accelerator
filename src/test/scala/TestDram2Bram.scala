@@ -17,7 +17,7 @@ import fpgatidbits.ocm.OCMMasterIF
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
+class TestDram2Bram extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val verilator = Seq(VerilatorBackendAnnotation, PrintFullStackTraceAnnotation)
 
@@ -26,7 +26,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     nPEs = 8, bitWidth = 8, mrp = mp, maxProblemSize = 64
   )
 
-  def initClocks(c: DRAM2BRAM): Unit = {
+  def initClocks(c: Dram2Bram): Unit = {
     c.io.agentRowAddress.req.initSink().setSinkClock(c.clock)
     c.io.agentRowAddress.rsp.initSource().setSourceClock(c.clock)
     c.io.dramRsp.initSource().setSourceClock(c.clock)
@@ -41,7 +41,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     res.U
   }
 
-  def dramReqs(c: DRAM2BRAM, nRows: Int, nCols: Int, baseAddr: Int): Seq[GenericMemoryRequest] = {
+  def dramReqs(c: Dram2Bram, nRows: Int, nCols: Int, baseAddr: Int): Seq[GenericMemoryRequest] = {
     val nBytes = (math.ceil(nCols.toDouble / 8) * 8 * nRows).toInt
     var nBytesPerReq: mutable.MutableList[Int] = mutable.MutableList()
     var _bytes = nBytes
@@ -65,7 +65,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       ))
   }
 
-  def dramRsps(c: DRAM2BRAM, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[GenericMemoryResponse]  = {
+  def dramRsps(c: Dram2Bram, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[GenericMemoryResponse]  = {
     assert(nCols == words(0).length)
     val totBytesPerRow = (math.ceil(nCols.toDouble/8) * 8).toInt
     var els = new Array[Array[Int]](words.length)
@@ -97,7 +97,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     ))
   }
 
-  def agentRowAddresses(c:DRAM2BRAM, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[RegStoreReq[AgentRowInfo]] = {
+  def agentRowAddresses(c:Dram2Bram, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[RegStoreReq[AgentRowInfo]] = {
     var bramColIdx = 0; var bramRowIdx = 0;
     val agentRows = ArrayBuffer[(Int,Int,Int,Int)]() //id, row, col, row_stop
     var isRegistered = false
@@ -144,12 +144,12 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
 
-  def tuple2BramEl(c: DRAM2BRAM, t: (Int,Int)): BigInt = {
+  def tuple2BramEl(c: Dram2Bram, t: (Int,Int)): BigInt = {
     val res = ( BigInt(t._1) | BigInt(t._2 << (c.p.agentWidth)) )
     res
   }
 
-  def bramEls2BramLine(c: DRAM2BRAM, e: Seq[BigInt]): BigInt = {
+  def bramEls2BramLine(c: Dram2Bram, e: Seq[BigInt]): BigInt = {
     var res: BigInt = 0
     e.zipWithIndex.foreach((v) => {
       res = res | v._1 << (v._2 * (c.p.bitWidth + c.p.agentWidth));
@@ -158,7 +158,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     res
   }
 
-  def bramCmds(c: DRAM2BRAM, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[BigInt] = {
+  def bramCmds(c: Dram2Bram, words: Seq[Seq[Int]], nRows: Int, nCols: Int): Seq[BigInt] = {
     def findLastNonZero(v: Seq[Int]): Int = {
       var res = 0
       v.map(_ != 0).zipWithIndex.foreach(v => if(v._1) res = v._2)
@@ -204,7 +204,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     }
 
 
-  def calcNBramCmds(c: DRAM2BRAM, words: Seq[Seq[Int]]): Int = {
+  def calcNBramCmds(c: Dram2Bram, words: Seq[Seq[Int]]): Int = {
     var nBramCmds = 0
     var runningValids = 0
     words.foreach(_.foreach(
@@ -220,7 +220,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     else nBramCmds
   }
 
-  def expectBramCmds(c: DRAM2BRAM, words: Seq[BigInt]): Unit = {
+  def expectBramCmds(c: Dram2Bram, words: Seq[BigInt]): Unit = {
     for (i <- 0 until words.length) {
       var cc = 0
       while(c.io.bramCmd.req.writeEn.peek.litToBoolean == false) {
@@ -243,7 +243,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
 
   it should "correctly transform simple example" in {
 
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       val nRows = 2;
       val nCols = 8;
@@ -272,7 +272,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     val ap = new MemCtrlParams(
       nPEs = 10, bitWidth = 8, mrp = mp, maxProblemSize = 64
     )
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       var nRows = 2;
       var nCols = 8;
@@ -304,7 +304,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     val ap = new MemCtrlParams(
       nPEs = 10, bitWidth = 8, mrp = mp, maxProblemSize = 64
     )
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       var nRows = 2;
       var nCols = 8;
@@ -336,7 +336,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       }.join()
     }}
   it should "work with wierd col/row" in {
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       var nRows = 7;
       var nCols = 7;
@@ -373,7 +373,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       }.join()
     }}
   it should "work with all zeros row" in {
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       var nRows = 4;
       var nCols = 8;
@@ -407,7 +407,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       }.join()
     }}
   it should "work with spilling over" in {
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       var nRows = 4;
       var nCols = 8;
@@ -441,7 +441,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
       }.join()
     }}
   it should "work for bigger examples" in {
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       var nRows = 16;
       var nCols = 16;
@@ -492,7 +492,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
   it should "Initialize correctly" in {
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       c.io.dramReq.valid.expect(false.B)
       c.io.dramRsp.ready.expect(true.B)
       c.io.agentRowAddress.rsp.valid.expect(false.B)
@@ -501,7 +501,7 @@ class TestDRAM2BRAM extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   it should "generate correct mem reqs" in {
-    test(new DRAM2BRAM(ap)) { c =>
+    test(new Dram2Bram(ap)) { c =>
       initClocks(c)
       val nRows = 42;
       val nCols = 43;

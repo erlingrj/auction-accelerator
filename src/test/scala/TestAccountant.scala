@@ -9,7 +9,7 @@ import chiseltest.internal.VerilatorBackendAnnotation
 import fpgatidbits.dma._
 
 
-class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Matchers {
+class TestAccountant extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val verilator = Seq(VerilatorBackendAnnotation)
 
@@ -18,7 +18,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
     nPEs = 4, bitWidth = 8, mrp=mp, maxProblemSize = 16
   )
 
-  def expectRead(c: AccountantExtPricePipelined, addr: Int, res: Int) = {
+  def expectRead(c: Accountant, addr: Int, res: Int) = {
   fork {
     c.io.priceStoreS1.req.expectDequeue(chiselTypeOf(c.io.priceStoreS1.req).bits.Lit(
       _.wen -> false.B,
@@ -34,7 +34,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
 
   }
 
-  def initClocks(c: AccountantExtPricePipelined): Unit = {
+  def initClocks(c: Accountant): Unit = {
     c.io.searchResultIn.initSource().setSourceClock(c.clock)
     c.io.unassignedAgents.initSink().setSinkClock(c.clock)
     c.io.requestedAgents.initSource().setSourceClock(c.clock)
@@ -45,12 +45,12 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
     c.io.priceStoreS1.rsp.initSource().setSourceClock(c.clock)
   }
 
-  def initRF(c: AccountantExtPricePipelined): Unit = {
+  def initRF(c: Accountant): Unit = {
     c.io.rfInfo.nObjects.poke(8.U)
     c.io.rfInfo.nAgents.poke(8.U)
   }
 
-  def mockAssignment(c: AccountantExtPricePipelined, agent: Int, obj: Int, bid: Int, oldPrice: Int): Unit = {
+  def mockAssignment(c: Accountant, agent: Int, obj: Int, bid: Int, oldPrice: Int): Unit = {
     fork {
       c.io.requestedAgents.enqueue(
         chiselTypeOf(c.io.requestedAgents).bits.Lit(
@@ -88,7 +88,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
   behavior of "AccountantExtPricePipelined"
 
   it should "Initialize correctly" in {
-    test(new AccountantExtPricePipelined(ap)) { c =>
+    test(new Accountant(ap)) { c =>
       c.io.unassignedAgents.ready.poke(true.B)
       c.io.requestedAgents.valid.poke(true.B)
 
@@ -101,7 +101,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
   }
 
   it should "update price correctly" in {
-    test(new AccountantExtPricePipelined(ap)) { c =>
+    test(new Accountant(ap)) { c =>
       initClocks(c)
       c.io.unassignedAgents.ready.poke(true.B)
       mockAssignment(c, agent=5, obj=6, bid=10, oldPrice=0)
@@ -110,7 +110,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
   }
 
   it should "evict old agent and fire memory request" in {
-    test(new AccountantExtPricePipelined(ap)) { c =>
+    test(new Accountant(ap)) { c =>
       initClocks(c)
       c.io.rfInfo.nObjects.poke(8.U)
       fork {
@@ -160,7 +160,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
 //  }
 
   it should "not schedule new unassigned" in {
-    test(new AccountantExtPricePipelined(ap)) { c =>
+    test(new Accountant(ap)) { c =>
       initClocks(c)
       initRF(c)
       c.io.unassignedAgents.ready.poke(true.B)
@@ -174,7 +174,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
   }
 
   it should "catch misspeculation 1" in {
-    test(new AccountantExtPricePipelined(ap)) { c =>
+    test(new Accountant(ap)) { c =>
       initClocks(c)
       c.io.rfInfo.nObjects.poke(8.U)
       fork {
@@ -192,7 +192,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
   }
 
   it should "catch misspeculation 2" in {
-    test(new AccountantExtPricePipelined(ap)) { c =>
+    test(new Accountant(ap)) { c =>
       initClocks(c)
       c.io.rfInfo.nObjects.poke(8.U)
       fork {

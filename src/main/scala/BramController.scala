@@ -2,7 +2,7 @@ package auction
 
 import chisel3._
 import chisel3.util._
-import fpgatidbits.dma.MemReqParams
+import fpgatidbits.dma.{MemReqParams, RoundUpAlign}
 import fpgatidbits.ocm.OCMMasterIF
 import fpgatidbits.synthutils.PrintableParam
 
@@ -42,6 +42,18 @@ class AgentInfo(val agentWidth: Int) extends Bundle {
 }
 
 
+// Function to calculate how many bytes to request from DRAM based on nRows, nCols and bitwidth
+object CalcNBytes {
+  def apply(nRows: UInt, nCols: UInt, bitWidth: Int): UInt = {
+    val elsPerWord = 64 / bitWidth //How many elements in one DRAM word (e.g. 8bit = 8 elements in 64 bit word)
+    val elsPerRow = RoundUpAlign(elsPerWord, nCols) // How many elements we need per row. Aligned up to fill up entire words
+    if (bitWidth == 8) {
+      elsPerRow * nRows
+    } else {
+      elsPerRow * nRows * (bitWidth / 8).U
+    }
+  }
+}
 // Connects application to BRAM
 
 //
