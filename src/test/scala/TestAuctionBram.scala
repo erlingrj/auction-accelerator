@@ -152,7 +152,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
       c.expectMem(addr = 64, value = 1.U)
       c.expectMem(addr = 72, value = 1.U)
       c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 2.U)
+      c.expectMem(addr = 88, value = 1.U)
 
 
       c.writeReg("rfIn_start", 1.U)
@@ -176,7 +176,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
       c.expectMem(addr = 64, value = 1.U)
       c.expectMem(addr = 72, value = 1.U)
       c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 2.U)
+      c.expectMem(addr = 88, value = 1.U)
 
     }
   }
@@ -216,7 +216,7 @@ class TestAuctionBram extends FlatSpec with ChiselScalatestTester with Matchers 
       c.expectMem(addr = 64, value = 1.U)
       c.expectMem(addr = 72, value = 1.U)
       c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 2.U)
+      c.expectMem(addr = 88, value = 1.U)
 
 
     }

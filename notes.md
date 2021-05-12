@@ -13,6 +13,10 @@ The first is a parallell processing parallell Search the second is sequential an
 
 
 ## Log
+## Last time
+- The changes I made to the TesterWrappeMemory is fucking it up somehow.
+- in the 4x4 PEs example we dont get the expected order of mem resps back. What could be the issue??
+-
 
 ## April 23
 - Passes all Verilator tests approx 10x improvement over SW (thats not that impressive though, but we are dealing with simple problems)

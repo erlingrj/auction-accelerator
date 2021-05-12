@@ -89,7 +89,7 @@ object CharacterizeMain {
 
   val mp = new MemReqParams(32, 64, 6, 1, true)
 
-  val instFxn_Accountant = {(ap: AccountantParams) => new AccountantExtPriceNonPipelined(ap)}
+  val instFxn_Accountant = {(ap: AccountantParams) => new AccountantExtPricePipelined(ap)}
   val aP = new AccountantParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 128, mrp = mp
   )

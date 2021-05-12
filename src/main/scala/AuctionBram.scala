@@ -9,6 +9,45 @@ import fpgatidbits.streams._
 import fpgatidbits.synthutils.PrintableParam
 
 
+class AuctionParams(
+  val nPEs: Int,
+  val bitWidth: Int,
+  val maxProblemSize: Int,
+  val memWidth: Int,
+) extends PrintableParam
+{
+  def headersAsList(): List[String] = {
+    List(
+      "nPEs", "bitWidth", "maxProblemSize", "memWidth"
+    )
+  }
+
+  def contentAsList(): List[String] = {
+    List(nPEs, bitWidth, maxProblemSize, memWidth).map(_.toString)
+  }
+
+  def agentWidth: Int = log2Ceil(maxProblemSize)
+  def pricesPerPE: Int = maxProblemSize/nPEs
+  def pricesPerPEWidth: Int = log2Ceil(pricesPerPE)
+  def bramDataWidth: Int = (bitWidth + 1 + agentWidth)*nPEs // Enough to store data + col + last for each PE
+  def bramAddrWidth: Int = log2Ceil(maxProblemSize*maxProblemSize / (nPEs)) //Enough to store max problemsize
+
+  def agentRowStoreParams: RegStoreParams = new RegStoreParams(1,1,0, agentWidth)
+  def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs + 1,1 ,0,agentWidth)
+}
+
+class AppControlSignals extends Bundle {
+  val finished = Output(Bool())
+  val cycleCount = Output(UInt(32.W))
+}
+
+class AppInfoSignals extends Bundle {
+  val start = Input(Bool())
+  val baseAddr = Input(UInt(64.W))
+  val nAgents = Input(UInt(32.W))
+  val nObjects = Input(UInt(32.W))
+  val baseAddrRes = Input(UInt(64.W))
+}
 
 
 // read and sum a contiguous stream of 32-bit uints from main memory
@@ -42,7 +81,7 @@ class AuctionBram(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAc
   val aP = new AccountantParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, mrp = mp
   )
-  val accountant = Module(new AccountantExtPriceNonPipelined(aP))
+  val accountant = Module(new AccountantExtPricePipelined(aP))
 
   val ddP = new DataDistributorParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, memWidth = mp.dataWidth
@@ -119,11 +158,11 @@ class AuctionBram(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAc
     dataMux.io.peOut(i) <> pes(i).io.rewardIn
     pes(i).io.PEResultOut <> search.io.benefitIn(i)
     pes(i).io.priceStore <> priceStore.io.rPorts(i)
-    pes(i).io.accountantNotifyContinue := accountant.io.notifyPEsContinue
   }
 
   search.io.resultOut <> accountant.io.searchResultIn
-  accountant.io.priceStore <> priceStore.io.rwPorts(0)
+  accountant.io.priceStoreS1 <> priceStore.io.rPorts.last
+  accountant.io.priceStoreS2 <> priceStore.io.wPorts(0)
 
   // MemController <> qUnassigned <> Controller <> Auction
   memController.io.unassignedAgents <> qUnassignedAgents.io.deq

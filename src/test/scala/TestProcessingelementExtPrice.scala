@@ -23,7 +23,7 @@ class TestProcessingElementExtPrice extends FlatSpec with ChiselScalatestTester 
   behavior of "ProcessingElementExtPrice"
   it should "Initialize correctly" in {
     test(new ProcessingElementExtPrice(ap)) { c =>
-
+      c.io.PEResultOut.ready.poke(true.B)
       c.io.PEResultOut.valid.expect(false.B)
       c.io.priceStore.rsp.valid.expect(false.B)
       c.io.rewardIn.ready.expect(true.B)
@@ -48,13 +48,14 @@ class TestProcessingElementExtPrice extends FlatSpec with ChiselScalatestTester 
           c.io.priceStore.rsp.enqueue(chiselTypeOf(c.io.priceStore.rsp).bits.Lit(
             _.rdata -> 98.U
           ))
+        }.fork {
+          c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(
+            _.benefit -> 2.U,
+            _.id -> 8.U,
+            _.last -> false.B,
+            _.oldPrice -> 98.U
+          ))
         }.join()
-
-      c.io.PEResultOut.expectDequeue(chiselTypeOf(c.io.PEResultOut).bits.Lit(
-        _.benefit -> 2.U,
-        _.id -> 8.U,
-        _.last -> false.B
-      ))
     }
   }
 

@@ -4,9 +4,31 @@ import chisel3.util._
 import fpgatidbits.dma.MemReqParams
 
 import fpgatidbits.synthutils.PrintableParam
+import fpgatidbits.synthutils.PrintableParam
 // The controller monitors the Register file and sets up the initial queues for the problem
 // It monitors the communication between Accountant and MemoryController and figures out when we are done
 // It signals the Accountant to write all data to memory and then updates reg file with info that we are done
+
+class ControllerParams(
+  val bitWidth: Int,
+  val nPEs: Int,
+  val mrp: MemReqParams,
+  val maxProblemSize: Int
+) extends PrintableParam {
+
+  override def headersAsList(): List[String] = {
+    List(
+
+    )
+  }
+
+  override def contentAsList(): List[String] = {
+    List(
+
+    )
+  }
+  def agentWidth = log2Ceil(maxProblemSize)
+}
 
 
 class ControllerBramIO(ap: ControllerParams) extends Bundle {
@@ -54,7 +76,7 @@ class ControllerBram(ap: ControllerParams) extends Module {
   val io = IO(new ControllerBramIO(ap))
   io.driveDefaults()
 
-  val constBackDownCount = 10
+  val constBackDownCount = 5
 
   val sIdle :: sSetupBram :: sSetupQueues :: sRunning :: sWriteBack :: sDone :: Nil = Enum(6)
 
@@ -96,6 +118,7 @@ class ControllerBram(ap: ControllerParams) extends Module {
       when (io.unassignedAgentsOut.fire()) {
         when (regCount === 0.U) {
           regState := sRunning
+          regBackDownCount := constBackDownCount.U
         }.otherwise {
           regCount := regCount - 1.U
         }
