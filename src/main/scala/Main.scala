@@ -135,32 +135,32 @@ object CharacterizeMain {
     val fpgaPart: String = TidbitsMakeUtils.fpgaPartMap(platform)
 
     if (chName == "Accountant") {
-      VivadoSynth.characterizePoint(aP, instFxn_Accountant, chPath, fpgaPart, "AccountantExtPriceNonPipelined")
+      VivadoSynth.characterizePoint(aP, instFxn_Accountant, chPath, fpgaPart, "Accountant")
     } else if (chName == "CharacterizeProcessingElement") {
-      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementExtPrice")
+      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElement")
     } else if (chName == "CharacterizeMemoryController") {
       VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "BramController")
     } else if (chName == "CharacterizeSearchTask") {
-      VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTaskPar")
+      VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTree")
     } else if (chName == "CharacterizeDataDistributor") {
-      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributorSparse")
+      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributor")
     } else if (chName == "CharacterizeSimpleDualPortBRAM") {
       VivadoSynth.characterizePoint(aP, instFxn_SimpleDualPortBRAM, chPath, fpgaPart, "SimpleDualPortBRAM")
     } else if (chName == "CharacterizeSinglePortBRAM") {
       VivadoSynth.characterizePoint(aP, instFxn_SinglePortBRAM, chPath, fpgaPart, "SinglePortBRAM")
     } else if (chName == "CharacterizeController") {
-      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "ControllerBram")
+      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "ApplicationController")
     } else if (chName == "CharacterizeDRAM2BRAM") {
-      VivadoSynth.characterizePoint(mcP, instFxn_DRAM2BRAM, chPath, fpgaPart, "DRAM2BRAM")
+      VivadoSynth.characterizePoint(mcP, instFxn_DRAM2BRAM, chPath, fpgaPart, "Dram2Bram")
     } else if (chName == "CharacterizeAuction") {
-      VivadoSynth.characterizePoint(auctionP, instFxn_Auction, chPath, fpgaPart, "AuctionBram")
+      VivadoSynth.characterizePoint(auctionP, instFxn_Auction, chPath, fpgaPart, "Auction")
     } else if (chName == "CharacterizeAll") {
-      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElementExtPrice")
+      VivadoSynth.characterizePoint(peP, instFxn_PE, chPath, fpgaPart, "ProcessingElement")
       VivadoSynth.characterizePoint(mcP, instFxn_MemoryController, chPath, fpgaPart, "BramController")
-      VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTaskPar")
-      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributorSparse")
-      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "ControllerBram")
-      VivadoSynth.characterizePoint(mcP, instFxn_DRAM2BRAM, chPath, fpgaPart, "DRAM2BRAM")
+      VivadoSynth.characterizePoint(stP, instFxn_SearchTask, chPath, fpgaPart, "SearchTree")
+      VivadoSynth.characterizePoint(ddP, instFxn_DataDistributor, chPath, fpgaPart, "DataDistributor")
+      VivadoSynth.characterizePoint(cP, instFxn_Controller, chPath, fpgaPart, "ApplicationController")
+      VivadoSynth.characterizePoint(mcP, instFxn_DRAM2BRAM, chPath, fpgaPart, "Dram2Bram")
     }
   }
 }
