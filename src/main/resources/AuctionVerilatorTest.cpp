@@ -3,7 +3,7 @@
 using namespace std;
 using namespace std::chrono;
 
-#include "AuctionBram.hpp"
+#include "Auction.hpp"
 #include "platform.h"
 
 #include "auction-cpp/utils.hpp"
@@ -18,7 +18,7 @@ double sc_time_stamp() {
 
 
 bool run_Auction(WrapperRegDriver * platform, std::vector<std::vector<int>> reward_mat) {
-  AuctionBram t(platform);
+  Auction t(platform);
 
   // 1. Calculate result in SW
   auto start = high_resolution_clock::now();
