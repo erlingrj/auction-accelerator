@@ -47,10 +47,12 @@ class AccountantIO(ap: AccountantParams) extends Bundle
 
   val searchResultIn = Flipped(Decoupled(new SearchTreeResult(searchTaskParams)))
 
-  // MemoryRqeust and memoryRequested are the two interfaces to the queues to Memory Controller
+  // MemoryReqeust and memoryRequested are the two interfaces to the queues to Memory Controller
   val unassignedAgents = Decoupled(new AgentInfo(ap.bitWidth))
   val requestedAgents = Flipped(Decoupled(new AgentInfo(ap.bitWidth)))
 
+  // After processing a search result we must notify the PEs that they can proceed.
+  val notifyPEs = Output(Bool())
 
   val rfInfo = new AppInfoSignals()
 
@@ -77,6 +79,7 @@ class AccountantIO(ap: AccountantParams) extends Bundle
     priceStoreS1.req.valid := false.B
     priceStoreS1.req.bits := DontCare
     priceStoreS1.rsp.ready := false.B
+    notifyPEs := false.B
   }
 }
 
@@ -135,6 +138,7 @@ class Accountant(ap: AccountantParams) extends Module
         io.unassignedAgents.bits.agent := s1_agent
         io.unassignedAgents.bits.nObjects := 0.U
       }
+      io.notifyPEs := true.B // Notify PEs that have processed something and they can unstall
     }
   }
 

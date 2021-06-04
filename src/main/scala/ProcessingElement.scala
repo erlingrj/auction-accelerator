@@ -39,6 +39,9 @@ class ProcessingElementIO(ap: ProcessingElementParams) extends Bundle {
   val stP = new SearchTreeParams(
     bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs
   )
+
+  val accountantNotify = Input(Bool())
+
   val PEResultOut = Decoupled(new PEResult(stP))
 
   def driveDefaults() = {
@@ -54,9 +57,9 @@ class ProcessingElementIO(ap: ProcessingElementParams) extends Bundle {
 class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
   val io = IO(new ProcessingElementIO(ap))
 
-  val sIdle :: sProcess  :: sFinished :: sStall :: Nil = Enum(4)
+  val sNormal :: sStall :: Nil = Enum(2)
 
-
+  val regState = RegInit(sNormal)
 
   val s1_price = RegInit(0.U(ap.bitWidth.W))
   val s1_last = RegInit(0.U(ap.bitWidth.W))
@@ -73,7 +76,7 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
 
   // Drive signals to default
   io.driveDefaults()
-  val stall = !io.PEResultOut.ready
+  val stall = WireInit(!io.PEResultOut.ready)
 
   when(!stall) {
     // Stage 1
@@ -103,4 +106,12 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
   io.PEResultOut.bits.benefit := s2_benefit
   io.PEResultOut.bits.oldPrice := s2_oldPrice
 
+  switch (regState) {
+    is (sStall) {
+      stall := true.B
+      when (io.accountantNotify) {
+        regState := sNormal
+      }
+    }
+  }
 }
