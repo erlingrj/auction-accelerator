@@ -60,20 +60,6 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
   val sNormal :: sStall :: Nil = Enum(2)
 
   val regState = RegInit(sNormal)
-
-  val s1_price = RegInit(0.U(ap.bitWidth.W))
-  val s1_last = RegInit(0.U(ap.bitWidth.W))
-  val s1_reward = RegInit(0.U(ap.bitWidth.W))
-  val s1_idx = RegInit(0.U(ap.bitWidth.W))
-  val s1_valid = RegInit(false.B)
-
-  val s2_benefit = RegInit(0.U(ap.bitWidth.W))
-  val s2_oldPrice = RegInit(0.U(ap.bitWidth.W))
-  val s2_idx = RegInit(0.U(ap.bitWidth.W))
-  val s2_last = RegInit(false.B)
-  val s2_valid = RegInit(false.B)
-
-
   // Drive signals to default
   io.driveDefaults()
   val stall = WireInit(!io.PEResultOut.ready)
@@ -82,7 +68,6 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
     // Stage 1
     io.rewardIn.ready := true.B
     val fire = io.rewardIn.fire()
-    s1_valid := fire
     when (fire) {
       val price = io.priceStore.read(io.rewardIn.bits.idx)
       val idx = io.rewardIn.bits.idx
