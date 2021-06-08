@@ -84,33 +84,32 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
     val fire = io.rewardIn.fire()
     s1_valid := fire
     when (fire) {
-      s1_price := io.priceStore.read(io.rewardIn.bits.idx)
-      s1_idx := io.rewardIn.bits.idx
-      s1_last := io.rewardIn.bits.last
-      s1_reward := io.rewardIn.bits.reward
+      val price = io.priceStore.read(io.rewardIn.bits.idx)
+      val idx = io.rewardIn.bits.idx
+      val last = io.rewardIn.bits.last
+      val reward = io.rewardIn.bits.reward
+      val diff = reward.zext() - price.zext()
+      val benefit =  Mux(diff(ap.bitWidth) === 1.U, 0.U, diff(ap.bitWidth-1, 0))
+
+      io.PEResultOut.valid := true.B
+      io.PEResultOut.bits.last := last
+      io.PEResultOut.bits.id := idx
+      io.PEResultOut.bits.benefit := benefit
+      io.PEResultOut.bits.oldPrice := price
     }
-
-    // stage 2
-    s2_valid := s1_valid
-    s2_idx := s1_idx
-    s2_last := s1_last
-    val diff = s1_reward.zext() - s1_price.zext()
-    s2_benefit :=  Mux(diff(ap.bitWidth) === 1.U, 0.U, diff(ap.bitWidth-1, 0))
-    s2_oldPrice := s1_price
-
   }
 
-  io.PEResultOut.valid := s2_valid
-  io.PEResultOut.bits.last := s2_last
-  io.PEResultOut.bits.id := s2_idx
-  io.PEResultOut.bits.benefit := s2_benefit
-  io.PEResultOut.bits.oldPrice := s2_oldPrice
 
   switch (regState) {
     is (sStall) {
       stall := true.B
       when (io.accountantNotify) {
         regState := sNormal
+      }
+    }
+    is (sNormal) {
+      when (io.rewardIn.fire() && io.rewardIn.bits.last) {
+        regState := sStall
       }
     }
   }
