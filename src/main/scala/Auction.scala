@@ -158,7 +158,11 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
     dataMux.io.peOut(i) <> pes(i).io.rewardIn
     pes(i).io.PEResultOut <> search.io.benefitIn(i)
     pes(i).io.priceStore <> priceStore.io.rPorts(i)
-    pes(i).io.accountantNotify := accountant.io.notifyPEs
+    if (i==0) {
+      pes(i).io.accountantNotify := accountant.io.notifyPEs
+    } else {
+      pes(i).io.accountantNotify := true.B
+    }
   }
 
   search.io.resultOut <> accountant.io.searchResultIn

@@ -54,7 +54,7 @@ class DataDistributor(p: DataDistributorParams) extends Module {
 
   io.peOut.zipWithIndex.map({
     case (pe, idx) =>
-      pe.valid := qData.io.deq.valid
+      pe.valid := qData.io.deq.fire
       pe.bits.reward := qDataDeq.els(idx).reward
       pe.bits.idx := qDataDeq.els(idx).idx
       pe.bits.last := qDataDeq.last
