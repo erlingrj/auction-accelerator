@@ -120,8 +120,9 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
   regBramRspValid := false.B
 
   // Queue for memory responses
-  val qBramRsps = Module(new Queue(new BramLine(p), 8)).io
-  val qBramRspLast = Module(new Queue(Bool(), entries=8)).io
+  val constBramRsps = 8
+  val qBramRsps = Module(new Queue(new BramLine(p), constBramRsps)).io
+  val qBramRspLast = Module(new Queue(Bool(), entries=constBramRsps+1)).io
 
   qBramRsps.enq.bits := io.bramReq.rsp.readData.asTypeOf(new BramLine(p))
   qBramRsps.enq.valid := regBramRspValid
