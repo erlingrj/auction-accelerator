@@ -113,5 +113,10 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
         regState := sNormal
       }
     }
+    is (sNormal) {
+      when(io.PEResultOut.fire()) {
+        regState := sStall
+      }
+    }
   }
 }
