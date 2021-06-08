@@ -113,6 +113,9 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
   val s1_rowStarted = RegInit(false.B)
 
 
+  val s1_regValids = RegInit(VecInit(Seq.fill(64/p.bitWidth)(false.B)))
+
+
   // State machine:
 
   // After reciving a word from memory we have to:
@@ -162,6 +165,9 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
         bramEls.zipWithIndex.map { case (b, i) =>
           when(regBytesLeftInRow > i.U) {
             b.value := dramRow((i + 1) * p.bitWidth - 1, i * p.bitWidth)
+            s1_regValids(i) := true.B
+          }.otherwise{
+            s1_regValids(i) := false.B
           }
         }
         when(regBytesLeftInRow === regNBytesInRow) {
@@ -212,8 +218,7 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
     }
     is (sProduceBramLine) {
 
-      val nValids = PopCount(s1_regBramEls.map(_.value =/= 0.U))
-      val valids = Compactor(s1_regBramEls, s1_regBramEls.map(_.value =/= 0.U))
+      val nValids = PopCount(s1_regValids)
       val newRegElCnt = Cat(0.U(1.W), regElCnt) + nValids
       regState := sParseDramWord
 
@@ -273,7 +278,7 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
           when(i.U < regElCnt) {
             el := regBramLine.els(i)
           }.otherwise{
-            el := valids(i.U-regElCnt)
+            el :=s1_regBramEls(i.U-regElCnt)
           }
         }
         // Fire it off
@@ -282,7 +287,7 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
         io.bramCmd.req.addr := regBramRowCnt
 
         // Add the remaining to the regBramLine
-        valids.zipWithIndex.map{case (el,i) =>
+        s1_regBramEls.zipWithIndex.map{case (el,i) =>
           when(i.U>=spotsLeft) {
             regBramLine.els(i.U-spotsLeft) := el
           }
@@ -310,7 +315,7 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
             bramLine.els(i) := regBramLine.els(i)
           }.otherwise {
             if (i < 64/p.bitWidth) {
-              bramLine.els(i) := valids(i.U - regElCnt)
+              bramLine.els(i) := s1_regBramEls(i.U - regElCnt)
             }
           }
         }
@@ -325,7 +330,7 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
 
       }.otherwise{
         // Add the valid guys to the bramLine and increment
-        valids.zipWithIndex.map{case (el, i) =>
+        s1_regBramEls.zipWithIndex.map{case (el, i) =>
           when(i.U < nValids) {
             regBramLine.els(regElCnt + i.U) := el
           }
