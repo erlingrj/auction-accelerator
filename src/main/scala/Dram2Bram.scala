@@ -139,7 +139,7 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
         rg.io.ctrl.byteCount := byteCount
         rg.io.ctrl.start := true.B
 //        val bytesInRow = (io.nCols >> ((p.bitWidth>>3)-1))
-        val bytesInRow = RoundUpAlign(align=8, io.nCols * (p.bitWidth/8).U)
+        val bytesInRow = io.nCols * (p.bitWidth/8).U
         regNBytesInRow := bytesInRow
         regBytesLeftInRow := bytesInRow
 
@@ -314,8 +314,11 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
           when (i.U < regElCnt) {
             bramLine.els(i) := regBramLine.els(i)
           }.otherwise {
-            if (i < 64/p.bitWidth) {
-              bramLine.els(i) := s1_regBramEls(i.U - regElCnt)
+            val  s1_idx = i.U - regElCnt
+            when (s1_idx < (64/p.bitWidth).U) {
+              when (s1_regValids(s1_idx)) {
+                bramLine.els(i) := s1_regBramEls(i.U - regElCnt)
+              }
             }
           }
         }
