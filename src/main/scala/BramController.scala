@@ -138,7 +138,7 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
   switch(regState) {
     is(sIdle) {
-      when(qBramRsps.enq.ready) {
+      when(qBramRsps.enq.ready && qBramRsps.count < (constBramRsps-2).U) {
         io.unassignedAgents.ready := true.B
         when(io.unassignedAgents.fire()) {
           val agentReq = io.unassignedAgents.bits
@@ -181,7 +181,7 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
     is(sReading) {
       // Fetch more data from BRAM
 
-      when(io.requestedAgents.ready) {
+      when(io.requestedAgents.ready && qBramRsps.count < (constBramRsps-2).U) {
 
         io.bramReq.req.writeEn := false.B
         io.bramReq.req.addr := regAgentRowAddr + 1.U
