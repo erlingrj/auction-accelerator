@@ -116,194 +116,194 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  it should "work on multiple simple 4x4 example" in {
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
-      c.writeReg("rfIn_nAgents", 4.U)
-      c.writeReg("rfIn_nObjects", 4.U)
-      c.writeReg("rfIn_baseAddr", 0.U)
-      c.writeReg("rfIn_baseAddrRes", 32.U)
-
-      val rewardArr = Seq(
-        "h0004_0003_0002_0001".U,
-        "h0003_0002_0001_0004".U,
-        "h0002_0001_0004_0003".U,
-        "h0001_0004_0003_0002".U
-      )
-
-      c.arrayToMem(0, rewardArr)
-      c.writeReg("rfIn_start", 1.U)
-      c.clock.step(1)
-      c.writeReg("rfIn_start", 0.U)
-
-      var cnt = 0
-      while (c.readReg("rfOut_finished").litValue != 1 &&
-        cnt < 1000) {
-
-        c.clock.step()
-        cnt = cnt + 1
-      }
-      c.expectReg("rfOut_finished", 1.U)
-      c.expectMem(addr = 32, value = 1.U)
-      c.expectMem(addr = 40, value = 2.U)
-      c.expectMem(addr = 48, value = 3.U)
-      c.expectMem(addr = 56, value = 0.U)
-
-
-      c.expectMem(addr = 64, value = 1.U)
-      c.expectMem(addr = 72, value = 1.U)
-      c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 2.U)
-
-
-      c.writeReg("rfIn_start", 1.U)
-      c.clock.step(1)
-      c.writeReg("rfIn_start", 0.U)
-
-      cnt = 0
-      while (c.readReg("rfOut_finished").litValue != 1 &&
-        cnt < 1000) {
-
-        c.clock.step()
-        cnt = cnt + 1
-      }
-      c.expectReg("rfOut_finished", 1.U)
-      c.expectMem(addr = 32, value = 1.U)
-      c.expectMem(addr = 40, value = 2.U)
-      c.expectMem(addr = 48, value = 3.U)
-      c.expectMem(addr = 56, value = 0.U)
-
-
-      c.expectMem(addr = 64, value = 1.U)
-      c.expectMem(addr = 72, value = 1.U)
-      c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 2.U)
-
-    }
-  }
-  it should "work on simple 4x4 example" in {
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
-      c.writeReg("rfIn_nAgents", 4.U)
-      c.writeReg("rfIn_nObjects", 4.U)
-      c.writeReg("rfIn_baseAddr", 0.U)
-      c.writeReg("rfIn_baseAddrRes", 32.U)
-
-      val rewardArr = Seq(
-        "h0004_0003_0002_0001".U,
-        "h0003_0002_0001_0004".U,
-        "h0002_0001_0004_0003".U,
-        "h0001_0004_0003_0002".U
-      )
-
-      c.arrayToMem(0, rewardArr)
-      c.writeReg("rfIn_start", 1.U)
-      c.clock.step(1)
-      c.writeReg("rfIn_start", 0.U)
-
-      var cnt = 0
-      while (c.readReg("rfOut_finished").litValue != 1 &&
-        cnt < 1000) {
-
-        c.clock.step()
-        cnt = cnt + 1
-      }
-      c.expectReg("rfOut_finished", 1.U)
-      c.expectMem(addr = 32, value = 1.U)
-      c.expectMem(addr = 40, value = 2.U)
-      c.expectMem(addr = 48, value = 3.U)
-      c.expectMem(addr = 56, value = 0.U)
-
-
-      c.expectMem(addr = 64, value = 1.U)
-      c.expectMem(addr = 72, value = 1.U)
-      c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 2.U)
-
-
-    }
-  }
-
-
-  it should "work on more complicated example" in {
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
-      val nAgents = 4
-      val nObjects = 5
-      val baseAddr = 0
-      val baseAddrRes = 1024
-      c.writeReg("rfIn_nAgents", nAgents.U)
-      c.writeReg("rfIn_nObjects", nObjects.U)
-      c.writeReg("rfIn_baseAddr", baseAddr.U)
-      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
-
-      val rewMat: Seq[Seq[Long]] = Seq(
-        Seq(0x0, 0x2, 0x0, 0x0, 0x3),
-        Seq(0x7, 0, 0x17, 0, 0),
-        Seq(0x11, 0x18, 0, 0, 0),
-        Seq(0, 0x6, 0xD, 0x14, 0)
-      )
-
-      val rewardArr = generateMemoryArray(rewMat, 16)
-      println(rewardArr)
-      c.arrayToMem(baseAddr, rewardArr)
-      c.writeReg("rfIn_start", 1.U)
-      c.clock.step(1)
-      c.writeReg("rfIn_start", 0.U)
-
-      var cnt = 0
-      while (c.readReg("rfOut_finished").litValue != 1 &&
-        cnt < 1000) {
-
-        c.clock.step()
-        cnt = cnt + 1
-      }
-      c.expectReg("rfOut_finished", 1.U)
-
-      val assignments = Seq(0, 2, 1, 3, 0)
-
-      for (j <- 0 until nObjects) {
-        c.expectMem(baseAddrRes + 8 * j, assignments(j).U)
-      }
-      // TODO: check prices
-    }
-  }
-
-
-  it should "10x10 with 4PEs" in {
-    val ap = new AuctionParams(
-      nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 16
-    )
-
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
-      val nAgents = 10
-      val nObjects = 10
-      val baseAddr = 0
-      val baseAddrRes = 1024
-      c.writeReg("rfIn_nAgents", nAgents.U)
-      c.writeReg("rfIn_nObjects", nObjects.U)
-      c.writeReg("rfIn_baseAddr", baseAddr.U)
-      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
-
-      val rewardArr = generateMemoryArray(rewMatBig, 16)
-      println(rewardArr)
-      c.arrayToMem(baseAddr, rewardArr)
-      c.writeReg("rfIn_start", 1.U)
-      c.clock.step(1)
-      c.writeReg("rfIn_start", 0.U)
-
-      var cnt = 0
-      while (c.readReg("rfOut_finished").litValue != 1 &&
-        cnt < 1000) {
-
-        c.clock.step()
-        cnt = cnt + 1
-      }
-      c.expectReg("rfOut_finished", 1.U)
-
-      val assignments = Seq(3,4,6,0,9,8,7,5,1,2)
-
-      for (j <- 0 until nObjects) {
-        c.expectMem(baseAddrRes + 8*j, assignments(j).U)
-      }
-      // TODO: check prices
-    }
-  }
+//  it should "work on multiple simple 4x4 example" in {
+//    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+//      c.writeReg("rfIn_nAgents", 4.U)
+//      c.writeReg("rfIn_nObjects", 4.U)
+//      c.writeReg("rfIn_baseAddr", 0.U)
+//      c.writeReg("rfIn_baseAddrRes", 32.U)
+//
+//      val rewardArr = Seq(
+//        "h0004_0003_0002_0001".U,
+//        "h0003_0002_0001_0004".U,
+//        "h0002_0001_0004_0003".U,
+//        "h0001_0004_0003_0002".U
+//      )
+//
+//      c.arrayToMem(0, rewardArr)
+//      c.writeReg("rfIn_start", 1.U)
+//      c.clock.step(1)
+//      c.writeReg("rfIn_start", 0.U)
+//
+//      var cnt = 0
+//      while (c.readReg("rfOut_finished").litValue != 1 &&
+//        cnt < 1000) {
+//
+//        c.clock.step()
+//        cnt = cnt + 1
+//      }
+//      c.expectReg("rfOut_finished", 1.U)
+//      c.expectMem(addr = 32, value = 1.U)
+//      c.expectMem(addr = 40, value = 2.U)
+//      c.expectMem(addr = 48, value = 3.U)
+//      c.expectMem(addr = 56, value = 0.U)
+//
+//
+//      c.expectMem(addr = 64, value = 1.U)
+//      c.expectMem(addr = 72, value = 1.U)
+//      c.expectMem(addr = 80, value = 1.U)
+//      c.expectMem(addr = 88, value = 2.U)
+//
+//
+//      c.writeReg("rfIn_start", 1.U)
+//      c.clock.step(1)
+//      c.writeReg("rfIn_start", 0.U)
+//
+//      cnt = 0
+//      while (c.readReg("rfOut_finished").litValue != 1 &&
+//        cnt < 1000) {
+//
+//        c.clock.step()
+//        cnt = cnt + 1
+//      }
+//      c.expectReg("rfOut_finished", 1.U)
+//      c.expectMem(addr = 32, value = 1.U)
+//      c.expectMem(addr = 40, value = 2.U)
+//      c.expectMem(addr = 48, value = 3.U)
+//      c.expectMem(addr = 56, value = 0.U)
+//
+//
+//      c.expectMem(addr = 64, value = 1.U)
+//      c.expectMem(addr = 72, value = 1.U)
+//      c.expectMem(addr = 80, value = 1.U)
+//      c.expectMem(addr = 88, value = 2.U)
+//
+//    }
+//  }
+//  it should "work on simple 4x4 example" in {
+//    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+//      c.writeReg("rfIn_nAgents", 4.U)
+//      c.writeReg("rfIn_nObjects", 4.U)
+//      c.writeReg("rfIn_baseAddr", 0.U)
+//      c.writeReg("rfIn_baseAddrRes", 32.U)
+//
+//      val rewardArr = Seq(
+//        "h0004_0003_0002_0001".U,
+//        "h0003_0002_0001_0004".U,
+//        "h0002_0001_0004_0003".U,
+//        "h0001_0004_0003_0002".U
+//      )
+//
+//      c.arrayToMem(0, rewardArr)
+//      c.writeReg("rfIn_start", 1.U)
+//      c.clock.step(1)
+//      c.writeReg("rfIn_start", 0.U)
+//
+//      var cnt = 0
+//      while (c.readReg("rfOut_finished").litValue != 1 &&
+//        cnt < 1000) {
+//
+//        c.clock.step()
+//        cnt = cnt + 1
+//      }
+//      c.expectReg("rfOut_finished", 1.U)
+//      c.expectMem(addr = 32, value = 1.U)
+//      c.expectMem(addr = 40, value = 2.U)
+//      c.expectMem(addr = 48, value = 3.U)
+//      c.expectMem(addr = 56, value = 0.U)
+//
+//
+//      c.expectMem(addr = 64, value = 1.U)
+//      c.expectMem(addr = 72, value = 1.U)
+//      c.expectMem(addr = 80, value = 1.U)
+//      c.expectMem(addr = 88, value = 2.U)
+//
+//
+//    }
+//  }
+//
+//
+//  it should "work on more complicated example" in {
+//    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+//      val nAgents = 4
+//      val nObjects = 5
+//      val baseAddr = 0
+//      val baseAddrRes = 1024
+//      c.writeReg("rfIn_nAgents", nAgents.U)
+//      c.writeReg("rfIn_nObjects", nObjects.U)
+//      c.writeReg("rfIn_baseAddr", baseAddr.U)
+//      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
+//
+//      val rewMat: Seq[Seq[Long]] = Seq(
+//        Seq(0x0, 0x2, 0x0, 0x0, 0x3),
+//        Seq(0x7, 0, 0x17, 0, 0),
+//        Seq(0x11, 0x18, 0, 0, 0),
+//        Seq(0, 0x6, 0xD, 0x14, 0)
+//      )
+//
+//      val rewardArr = generateMemoryArray(rewMat, 16)
+//      println(rewardArr)
+//      c.arrayToMem(baseAddr, rewardArr)
+//      c.writeReg("rfIn_start", 1.U)
+//      c.clock.step(1)
+//      c.writeReg("rfIn_start", 0.U)
+//
+//      var cnt = 0
+//      while (c.readReg("rfOut_finished").litValue != 1 &&
+//        cnt < 1000) {
+//
+//        c.clock.step()
+//        cnt = cnt + 1
+//      }
+//      c.expectReg("rfOut_finished", 1.U)
+//
+//      val assignments = Seq(0, 2, 1, 3, 0)
+//
+//      for (j <- 0 until nObjects) {
+//        c.expectMem(baseAddrRes + 8 * j, assignments(j).U)
+//      }
+//      // TODO: check prices
+//    }
+//  }
+//
+//
+//  it should "10x10 with 4PEs" in {
+//    val ap = new AuctionParams(
+//      nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 16
+//    )
+//
+//    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+//      val nAgents = 10
+//      val nObjects = 10
+//      val baseAddr = 0
+//      val baseAddrRes = 1024
+//      c.writeReg("rfIn_nAgents", nAgents.U)
+//      c.writeReg("rfIn_nObjects", nObjects.U)
+//      c.writeReg("rfIn_baseAddr", baseAddr.U)
+//      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
+//
+//      val rewardArr = generateMemoryArray(rewMatBig, 16)
+//      println(rewardArr)
+//      c.arrayToMem(baseAddr, rewardArr)
+//      c.writeReg("rfIn_start", 1.U)
+//      c.clock.step(1)
+//      c.writeReg("rfIn_start", 0.U)
+//
+//      var cnt = 0
+//      while (c.readReg("rfOut_finished").litValue != 1 &&
+//        cnt < 1000) {
+//
+//        c.clock.step()
+//        cnt = cnt + 1
+//      }
+//      c.expectReg("rfOut_finished", 1.U)
+//
+//      val assignments = Seq(3,4,6,0,9,8,7,5,1,2)
+//
+//      for (j <- 0 until nObjects) {
+//        c.expectMem(baseAddrRes + 8*j, assignments(j).U)
+//      }
+//      // TODO: check prices
+//    }
+//  }
 }

@@ -30,7 +30,7 @@ class AuctionParams(
   def pricesPerPE: Int = maxProblemSize/nPEs
   def pricesPerPEWidth: Int = log2Ceil(pricesPerPE)
   def bramDataWidth: Int = (bitWidth + 1 + agentWidth)*nPEs // Enough to store data + col + last for each PE
-  def bramAddrWidth: Int = log2Ceil(maxProblemSize*maxProblemSize / (nPEs)) //Enough to store max problemsize
+  def bramAddrWidth: Int = log2Ceil(maxProblemSize * maxProblemSize/nPEs) //Enough to store max problemsize
 
   def agentRowStoreParams: RegStoreParams = new RegStoreParams(1,1,0, agentWidth)
   def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs + 1,1 ,0,agentWidth)
@@ -89,7 +89,7 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   val dataMux = Module(new DataDistributor(ddP))
 
   // create some queues
-  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
+  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=32))
   val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
 
 
@@ -153,6 +153,8 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   memController.io.dataDistOut <> dataMux.io.bramWordIn
   memController.io.agentRowAddrReq <> agentRowStore.io.rPorts(0)
   memController.io.bramReq <> bram.io.read
+  memController.io.nCols := io.rfIn.nObjects
+  memController.io.nRows := io.rfIn.nAgents
 
   for (i <- 0 until ap.nPEs) {
     dataMux.io.peOut(i) <> pes(i).io.rewardIn
