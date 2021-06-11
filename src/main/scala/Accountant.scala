@@ -129,7 +129,7 @@ class Accountant(ap: AccountantParams) extends Module
         regAssignments(s1_object).valid := true.B
 
         io.priceStoreS2.write(s1_bid, s1_object)
-      }.otherwise {
+      }.elsewhen(s1_bid > 0.U) {
         // Mis-speculation. Redo
         io.unassignedAgents.valid := true.B
         io.unassignedAgents.bits.agent := s1_agent

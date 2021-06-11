@@ -94,7 +94,19 @@ int main(int argc, char** argv)
 {
     cout <<"Running Auction Accelerator" <<endl;
     int epsilon = 1;
-    string path = "auction-cpp/resources/test_problems8bit";
+
+     string path = "auction-cpp/resources/test_problemsfc8bit";
+      for (const auto & entry : experimental::filesystem::directory_iterator(path)) {
+        auto p = string(entry.path().string());
+        auto rew = parse_csv(p);
+        cout <<p <<endl <<" rows=" <<rew.size() <<" cols=" <<rew[0].size() <<endl;
+        WrapperRegDriver * platform = initPlatform();
+        if (!run_Auction(platform, rew)) {
+          return 1;
+        }
+    }
+
+    path = "auction-cpp/resources/test_problems8bit";
     for (const auto & entry : experimental::filesystem::directory_iterator(path)) {
 
       auto p = string(entry.path().string());
