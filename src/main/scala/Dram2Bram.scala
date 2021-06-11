@@ -308,10 +308,8 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
         for (i <- 0 until bramLine.els.length)  {
           when (i.U < regElCnt) {
             bramLine.els(i) := regBramLine.els(i)
-          }.otherwise {
-            if (i < 64/p.bitWidth) {
-              bramLine.els(i) := valids(i.U - regElCnt)
-            }
+          }.elsewhen(i.U - regElCnt < (64/p.bitWidth).U) {
+            bramLine.els(i) := valids(i.U - regElCnt)
           }
         }
 
