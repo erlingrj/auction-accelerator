@@ -10,7 +10,7 @@ using namespace std::chrono;
 #include "auction-cpp/AuctionSolver.hpp"
 #include <experimental/filesystem>
 
-#define REW_MAT_BUF_SIZE 16384
+#define REW_MAT_BUF_SIZE 0x10000
 
 double sc_time_stamp() {
     return 0;
@@ -27,15 +27,16 @@ bool run_Auction(WrapperRegDriver * platform, std::vector<std::vector<int>> rewa
   auto sw_duration = duration_cast<nanoseconds>(stop-start);
 
 
-  uint8_t rew_mat_aligned[REW_MAT_BUF_SIZE];
-  int size = align_to_rows(reward_mat, (uint8_t *) &rew_mat_aligned);
+  uint64_t rew_mat_aligned[REW_MAT_BUF_SIZE];
+  int size = allocate_reward(reward_mat, (uint64_t *) &rew_mat_aligned);
+
 
   int n_rows = reward_mat.size();
   int n_cols = reward_mat[0].size();
 
   bool print_rew_mat = false;
   if (print_rew_mat) {
-    for (int i = 0; i< size/8; i++) {
+    for (int i = 0; i<  n_rows; i++) {
       for (int j = 0; j< n_cols; j++) {
         cout <<rew_mat_aligned[i*n_cols + j] <<" ";
       }
@@ -95,7 +96,7 @@ int main(int argc, char** argv)
     cout <<"Running Auction Accelerator" <<endl;
     int epsilon = 1;
 
-     string path = "auction-cpp/resources/test_problemsfc8bit";
+     string path = "auction-cpp/resources/test_problems8bit";
       for (const auto & entry : experimental::filesystem::directory_iterator(path)) {
         auto p = string(entry.path().string());
         auto rew = parse_csv(p);
@@ -106,7 +107,9 @@ int main(int argc, char** argv)
         }
     }
 
-    path = "auction-cpp/resources/test_problems8bit";
+    return 0;
+
+    path = "auction-cpp/resources/test_problemsfc8bit";
     for (const auto & entry : experimental::filesystem::directory_iterator(path)) {
 
       auto p = string(entry.path().string());
