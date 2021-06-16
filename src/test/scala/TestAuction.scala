@@ -10,7 +10,7 @@ import fpgatidbits.PlatformWrapper.GenericAccelImplicits._
 class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val ap = new AuctionParams(
-    nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 8
+    nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 16
   )
 
   val rewMatBig: Seq[Seq[Long]] = Seq(
@@ -34,15 +34,22 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
     val valsPerMemRow = 64 / width
     var rewardArr = scala.collection.mutable.ArrayBuffer.empty[UInt]
 
-    rows.foreach { case (row) =>
-      row.sliding(valsPerMemRow, valsPerMemRow).foreach { case (w) =>
-        var memWord: Long = 0
-        w.zipWithIndex.foreach { case (v, i) =>
-          memWord = memWord | v << i * width
-        }
-        rewardArr += memWord.U
-      }
+    rows.foreach{ case (row) =>
+      row.foreach{ case (v) => {
+        rewardArr += v.U
+      }}
     }
+
+
+//    rows.foreach { case (row) =>
+//      row.sliding(valsPerMemRow, valsPerMemRow).foreach { case (w) =>
+//        var memWord: Long = 0
+//        w.zipWithIndex.foreach { case (v, i) =>
+//          memWord = memWord | v << i * width
+//        }
+//        rewardArr += memWord.U
+//      }
+//    }
     rewardArr
   }
 
@@ -118,17 +125,25 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
 
   it should "work on multiple simple 4x4 example" in {
     test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+      val baseAddrRes = 1024
+
       c.writeReg("rfIn_nAgents", 4.U)
       c.writeReg("rfIn_nObjects", 4.U)
       c.writeReg("rfIn_baseAddr", 0.U)
-      c.writeReg("rfIn_baseAddrRes", 32.U)
+      c.writeReg("rfIn_baseAddrRes",baseAddrRes.U)
 
       val rewardArr = Seq(
-        "h0004_0003_0002_0001".U,
-        "h0003_0002_0001_0004".U,
-        "h0002_0001_0004_0003".U,
-        "h0001_0004_0003_0002".U
-      )
+        3.U,2.U,1.U,4.U,
+        4.U,3.U,2.U,1.U,
+        1.U,4.U,3.U,2.U,
+        2.U,1.U,4.U,3.U)
+
+//      val rewardArr = Seq(
+//        "h0004_0003_0002_0001".U,
+//        "h0003_0002_0001_0004".U,
+//        "h0002_0001_0004_0003".U,
+//        "h0001_0004_0003_0002".U
+//      )
 
       c.arrayToMem(0, rewardArr)
       c.writeReg("rfIn_start", 1.U)
@@ -143,16 +158,15 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
         cnt = cnt + 1
       }
       c.expectReg("rfOut_finished", 1.U)
-      c.expectMem(addr = 32, value = 1.U)
-      c.expectMem(addr = 40, value = 2.U)
-      c.expectMem(addr = 48, value = 3.U)
-      c.expectMem(addr = 56, value = 0.U)
+      c.expectMem(addr = baseAddrRes, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 8, value = 2.U)
+      c.expectMem(addr = baseAddrRes + 2*8, value = 3.U)
+      c.expectMem(addr = baseAddrRes + 3*8, value = 0.U)
 
-
-      c.expectMem(addr = 64, value = 1.U)
-      c.expectMem(addr = 72, value = 1.U)
-      c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 4*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 5*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 6*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 7*8, value = 1.U)
 
 
       c.writeReg("rfIn_start", 1.U)
@@ -167,32 +181,39 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
         cnt = cnt + 1
       }
       c.expectReg("rfOut_finished", 1.U)
-      c.expectMem(addr = 32, value = 1.U)
-      c.expectMem(addr = 40, value = 2.U)
-      c.expectMem(addr = 48, value = 3.U)
-      c.expectMem(addr = 56, value = 0.U)
+      c.expectMem(addr = baseAddrRes, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 8, value = 2.U)
+      c.expectMem(addr = baseAddrRes + 2*8, value = 3.U)
+      c.expectMem(addr = baseAddrRes + 3*8, value = 0.U)
 
-
-      c.expectMem(addr = 64, value = 1.U)
-      c.expectMem(addr = 72, value = 1.U)
-      c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 4*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 5*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 6*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 7*8, value = 1.U)
 
     }
   }
   it should "work on simple 4x4 example" in {
     test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+
+      val baseAddrRes = 1024
       c.writeReg("rfIn_nAgents", 4.U)
       c.writeReg("rfIn_nObjects", 4.U)
       c.writeReg("rfIn_baseAddr", 0.U)
-      c.writeReg("rfIn_baseAddrRes", 32.U)
+      c.writeReg("rfIn_baseAddrRes", baseAddrRes.U)
 
       val rewardArr = Seq(
-        "h0004_0003_0002_0001".U,
-        "h0003_0002_0001_0004".U,
-        "h0002_0001_0004_0003".U,
-        "h0001_0004_0003_0002".U
-      )
+        3.U,2.U,1.U,4.U,
+        4.U,3.U,2.U,1.U,
+        1.U,4.U,3.U,2.U,
+        2.U,1.U,4.U,3.U)
+
+//      val rewardArr = Seq(
+//        "h0004_0003_0002_0001".U,
+//        "h0003_0002_0001_0004".U,
+//        "h0002_0001_0004_0003".U,
+//        "h0001_0004_0003_0002".U
+//      )
 
       c.arrayToMem(0, rewardArr)
       c.writeReg("rfIn_start", 1.U)
@@ -207,17 +228,15 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
         cnt = cnt + 1
       }
       c.expectReg("rfOut_finished", 1.U)
-      c.expectMem(addr = 32, value = 1.U)
-      c.expectMem(addr = 40, value = 2.U)
-      c.expectMem(addr = 48, value = 3.U)
-      c.expectMem(addr = 56, value = 0.U)
+      c.expectMem(addr = baseAddrRes, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 8, value = 2.U)
+      c.expectMem(addr = baseAddrRes + 2*8, value = 3.U)
+      c.expectMem(addr = baseAddrRes + 3*8, value = 0.U)
 
-
-      c.expectMem(addr = 64, value = 1.U)
-      c.expectMem(addr = 72, value = 1.U)
-      c.expectMem(addr = 80, value = 1.U)
-      c.expectMem(addr = 88, value = 1.U)
-
+      c.expectMem(addr = baseAddrRes + 4*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 5*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 6*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 7*8, value = 1.U)
 
     }
   }
