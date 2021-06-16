@@ -104,7 +104,7 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
 
   // dram2bram reader
-  val dram2bram = Module(new Dram2Bram(p = mcP))
+  val dram2bram = Module(new Dram2Bram2(p = mcP))
   dram2bram.io.dramReq <> io.memPort(0).memRdReq
   dram2bram.io.dramRsp <> io.memPort(0).memRdRsp
   dram2bram.io.bramCmd <> bram.io.write
