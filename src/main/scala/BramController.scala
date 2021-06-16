@@ -119,8 +119,6 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
   val regAgentReq = RegInit(0.U.asTypeOf(new AgentInfo(p.agentWidth)))
   regBramRspValid := false.B
 
-
-
   // Queue for memory responses
   val constBramRsps = 8
   val qBramRsps = Module(new Queue(new BramLine(p), constBramRsps)).io
@@ -145,7 +143,10 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
   switch(regState) {
     is(sIdle) {
-      when(qBramRsps.count < (constBramRsps-2).U) {
+      when(qBramRsps.enq.ready &&
+        qBramRsps.count < (constBramRsps-2).U &&
+        io.requestedAgents.ready)
+      ){
         io.unassignedAgents.ready := true.B
         when(io.unassignedAgents.fire()) {
           val agentReq = io.unassignedAgents.bits
@@ -161,7 +162,7 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
           when(agentRowInfo.length > 0.U) {
 
-            regNumBramWordsLeft := agentRowInfo.length - 1.U
+            regNumBramWordsLeft := agentRowInfo.length-1.U
             regAgentRowAddr := agentRowInfo.rowAddr
 
             // Make request to BRAM
@@ -170,13 +171,12 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
             // Prepare the rsp queue for a Bram rsp next cycle
             regBramRspValid := true.B
-            bramRspsEnq := true.B
           }
-          when(agentRowInfo.length > 1.U) {
+          when (agentRowInfo.length > 1.U) {
             regState := sReading
           }
 
-          when(agentRowInfo.length === 1.U) {
+          when (agentRowInfo.length === 1.U) {
             qBramRspLast.enq.bits := true.B
             io.requestedAgents.valid := true.B
             io.requestedAgents.bits := agentReq
@@ -189,7 +189,7 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
     is(sReading) {
       // Fetch more data from BRAM
 
-      when(io.requestedAgents.ready) {
+      when(io.requestedAgents.ready && qBramRsps.count < (constBramRsps-2).U) {
 
         io.bramReq.req.writeEn := false.B
         io.bramReq.req.addr := regAgentRowAddr + 1.U
@@ -237,17 +237,6 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
       // Send to data-dist
       io.dataDistOut.bits := bramWordOut
       io.dataDistOut.valid := true.B
-
-      bramRspsDeq := true.B
     }
   }
-  val bramRspCountNext_1 = WireInit(regBramRspsCount)
-  when (bramRspsEnq) {
-    bramRspCountNext_1 := regBramRspsCount + 1.U
-  }
-  val bramRspCountNext_2 = WireInit(bramRspCountNext_1)
-  when (bramRspsDeq) {
-    bramRspCountNext_2 := bramRspCountNext_1 - 1.U
-  }
-  regBramRspsCount := bramRspCountNext_2
 }
