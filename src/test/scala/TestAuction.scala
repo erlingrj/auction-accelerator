@@ -163,10 +163,10 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
       c.expectMem(addr = baseAddrRes + 2*8, value = 3.U)
       c.expectMem(addr = baseAddrRes + 3*8, value = 0.U)
 
-      c.expectMem(addr = baseAddrRes + 4*8, value = 1.U)
-      c.expectMem(addr = baseAddrRes + 5*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 4*8, value = 3.U)
+      c.expectMem(addr = baseAddrRes + 5*8, value = 2.U)
       c.expectMem(addr = baseAddrRes + 6*8, value = 1.U)
-      c.expectMem(addr = baseAddrRes + 7*8, value = 2.U)
+      c.expectMem(addr = baseAddrRes + 7*8, value = 4.U)
 
 
       c.writeReg("rfIn_start", 1.U)
@@ -186,10 +186,10 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
       c.expectMem(addr = baseAddrRes + 2*8, value = 3.U)
       c.expectMem(addr = baseAddrRes + 3*8, value = 0.U)
 
-      c.expectMem(addr = baseAddrRes + 4*8, value = 1.U)
-      c.expectMem(addr = baseAddrRes + 5*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 4*8, value = 3.U)
+      c.expectMem(addr = baseAddrRes + 5*8, value = 2.U)
       c.expectMem(addr = baseAddrRes + 6*8, value = 1.U)
-      c.expectMem(addr = baseAddrRes + 7*8, value = 2.U)
+      c.expectMem(addr = baseAddrRes + 7*8, value = 4.U)
 
     }
   }
@@ -233,10 +233,10 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
       c.expectMem(addr = baseAddrRes + 2*8, value = 3.U)
       c.expectMem(addr = baseAddrRes + 3*8, value = 0.U)
 
-      c.expectMem(addr = baseAddrRes + 4*8, value = 1.U)
-      c.expectMem(addr = baseAddrRes + 5*8, value = 1.U)
+      c.expectMem(addr = baseAddrRes + 4*8, value = 3.U)
+      c.expectMem(addr = baseAddrRes + 5*8, value = 2.U)
       c.expectMem(addr = baseAddrRes + 6*8, value = 1.U)
-      c.expectMem(addr = baseAddrRes + 7*8, value = 2.U)
+      c.expectMem(addr = baseAddrRes + 7*8, value = 4.U)
 
     }
   }
