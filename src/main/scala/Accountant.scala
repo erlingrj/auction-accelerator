@@ -30,6 +30,8 @@ class WriteBackStream(ap: AccountantParams) extends Bundle {
   val start = Output(Bool())
   val wrData = Decoupled(UInt(64.W)) // TODO: One-size for prices AND agents? Or one streamwriter per?
   val finished = Input(Bool())
+  val baseAddr = Output(UInt(32.W))
+  val byteCount = Output(UInt(32.W))
 }
 
 class Assignment(private val ap: AccountantParams) extends Bundle {
@@ -71,6 +73,8 @@ class AccountantIO(ap: AccountantParams) extends Bundle
     writeBackStream.start := false.B
     writeBackStream.wrData.valid := false.B
     writeBackStream.wrData.bits := DontCare
+    writeBackStream.baseAddr := DontCare
+    writeBackStream.byteCount := DontCare
     priceStoreS2.req.valid := false.B
     priceStoreS2.req.bits := DontCare
     priceStoreS2.rsp.ready := false.B
@@ -80,8 +84,7 @@ class AccountantIO(ap: AccountantParams) extends Bundle
   }
 }
 
-class Accountant(ap: AccountantParams) extends Module
-{
+class Accountant(ap: AccountantParams) extends Module {
   val io = IO(new AccountantIO(ap))
   io.driveDefaults()
 
@@ -96,54 +99,71 @@ class Accountant(ap: AccountantParams) extends Module
   val s1_valid = RegInit(false.B)
 
 
+  // State machine (so we can do the writeback stuff)
+  val sIdle :: sWriteBackAssignments :: sWriteBackPrices1 :: sWriteBackPrices2 :: sWaitForFinished :: Nil = Enum(5)
+  val regWBState = RegInit(sIdle)
+  val regWBCount = RegInit(0.U(ap.agentWidth.W))
+  val regWBPrice = RegInit(0.U(ap.bitWidth.W))
+
+  val regNRows = RegInit(0.U(32.W))
+  val regNCols = RegInit(0.U(32.W))
+  val regBaseAddr = RegInit(0.U(32.W))
+  val regByteCount = RegInit(0.U(32.W))
+
   val stall = !io.unassignedAgents.ready
 
-  when (!stall) {
-    // Do IO
-    io.searchResultIn.ready := true.B
-    val fire = io.searchResultIn.fire()
-    s1_valid := fire
-    when (fire) {
-      assert(io.requestedAgents.valid)
-      io.requestedAgents.ready := true.B
+  switch(regWBState) {
+    is (sIdle) {
+      when (io.rfInfo.start) {
+        regNRows := io.rfInfo.nAgents
+        regNCols := io.rfInfo.nObjects
+        regBaseAddr := io.rfInfo.baseAddrRes
+        regByteCount := io.rfInfo.nObjects * 16.U
+      }
 
-      val searchRes = io.searchResultIn.bits
-      s1_currentPrice := io.priceStoreS1.read(searchRes.winner)
-      s1_object := searchRes.winner
-      s1_bid := searchRes.bid
-      s1_agent := io.requestedAgents.bits.agent
-    }
+    when(!stall) {
+      // Do IO
+      io.searchResultIn.ready := true.B
+      val fire = io.searchResultIn.fire()
+      s1_valid := fire
+      when(fire) {
+        assert(io.requestedAgents.valid)
+        io.requestedAgents.ready := true.B
 
-    //  Update
-    when (s1_valid) {
-      when(s1_bid > s1_currentPrice) {
-        // OK. Update everything
+        val searchRes = io.searchResultIn.bits
+        s1_currentPrice := io.priceStoreS1.read(searchRes.winner)
+        s1_object := searchRes.winner
+        s1_bid := searchRes.bid
+        s1_agent := io.requestedAgents.bits.agent
+      }
 
-        // Kick out old guy
-        io.unassignedAgents.valid := regAssignments(s1_object).valid
-        io.unassignedAgents.bits.agent := regAssignments(s1_object).agent
-        io.unassignedAgents.bits.nObjects := 0.U
+      //  Update
+      when(s1_valid) {
+        when(s1_bid > s1_currentPrice) {
+          // OK. Update everything
 
-        // Assign new
-        regAssignments(s1_object).agent := s1_agent
-        regAssignments(s1_object).valid := true.B
+          // Kick out old guy
+          io.unassignedAgents.valid := regAssignments(s1_object).valid
+          io.unassignedAgents.bits.agent := regAssignments(s1_object).agent
+          io.unassignedAgents.bits.nObjects := 0.U
 
-        io.priceStoreS2.write(s1_bid, s1_object)
-      }.elsewhen(s1_bid > 0.U) {
-        // Mis-speculation. Redo
-        io.unassignedAgents.valid := true.B
-        io.unassignedAgents.bits.agent := s1_agent
-        io.unassignedAgents.bits.nObjects := 0.U
+          // Assign new
+          regAssignments(s1_object).agent := s1_agent
+          regAssignments(s1_object).valid := true.B
+
+          io.priceStoreS2.write(s1_bid, s1_object)
+        }.elsewhen(s1_bid > 0.U) {
+          // Mis-speculation. Redo
+          io.unassignedAgents.valid := true.B
+          io.unassignedAgents.bits.agent := s1_agent
+          io.unassignedAgents.bits.nObjects := 0.U
+        }
       }
     }
   }
+}
 
 
-
-  // State machine (so we can do the writeback stuff)
-  val sIdle :: sWriteBackAssignments :: sWriteBackPrices :: sWaitForFinished :: Nil = Enum(4)
-  val regWBState = RegInit(sIdle)
-  val regWBCount = RegInit(0.U(ap.agentWidth.W))
 
  switch (regWBState) {
     is (sIdle) {
@@ -154,31 +174,42 @@ class Accountant(ap: AccountantParams) extends Module
     }
     is (sWriteBackAssignments)  {
       io.writeBackStream.start := true.B
-      when(regWBCount === io.rfInfo.nObjects) {
+      when(regWBCount === regNCols) {
         regWBCount := 0.U
-        regWBState := sWriteBackPrices
+        regWBState := sWriteBackPrices1
       }.otherwise {
         io.writeBackStream.wrData.valid := true.B
         io.writeBackStream.wrData.bits := regAssignments(regWBCount).agent
+        io.writeBackStream.baseAddr := regBaseAddr
+        io.writeBackStream.byteCount := regByteCount
         when(io.writeBackStream.wrData.fire()) {
           regWBCount := regWBCount + 1.U
         }
       }
     }
-    is (sWriteBackPrices) {
+    is (sWriteBackPrices1) {
       io.writeBackStream.start := true.B
-      when (regWBCount === io.rfInfo.nObjects) {
+      io.writeBackStream.wrData.valid := false.B
+      when (regWBCount === regNCols) {
         regWBCount := 0.U
         regWBState := sWaitForFinished
       }.otherwise {
-        io.writeBackStream.wrData.valid := true.B
-        io.writeBackStream.wrData.bits := io.priceStoreS1.read(regWBCount)
-        when (io.writeBackStream.wrData.fire()) {
-          regWBCount := regWBCount + 1.U
-        }
+
+        regWBPrice := io.priceStoreS2.read(regWBCount)
+        regWBState := sWriteBackPrices2
       }
     }
-    is (sWaitForFinished) {
+   is (sWriteBackPrices2) {
+     io.writeBackStream.wrData.valid := true.B
+     io.writeBackStream.start := true.B
+     io.writeBackStream.wrData.bits := regWBPrice
+     when (io.writeBackStream.wrData.fire()) {
+       regWBCount := regWBCount + 1.U
+       regWBState := sWriteBackPrices1
+     }
+
+   }
+   is (sWaitForFinished) {
       io.writeBackStream.start := true.B
       when (io.writeBackStream.finished === true.B) {
         regWBState := sIdle

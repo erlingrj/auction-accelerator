@@ -3,7 +3,7 @@ package auction
 import chisel3._
 import chisel3.util._
 import fpgatidbits.dma.{MemReqParams, RoundUpAlign}
-import fpgatidbits.ocm.OCMMasterIF
+import fpgatidbits.ocm.{FPGAQueue, OCMMasterIF}
 import fpgatidbits.synthutils.PrintableParam
 
 // The controller monitors the Register file and sets up the initial queues for the problem
@@ -121,8 +121,8 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
   // Queue for memory responses
   val constBramRsps = 8
-  val qBramRsps = Module(new Queue(new BramLine(p), constBramRsps)).io
-  val qBramRspLast = Module(new Queue(Bool(), entries=constBramRsps+1)).io
+  val qBramRsps = Module(new FPGAQueue(new BramLine(p), constBramRsps)).io
+  val qBramRspLast = Module(new FPGAQueue(Bool(), entries=constBramRsps+1)).io
 
   qBramRsps.enq.bits := io.bramReq.rsp.readData.asTypeOf(new BramLine(p))
   qBramRsps.enq.valid := regBramRspValid
@@ -132,16 +132,18 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
   qBramRspLast.enq.valid := false.B
   qBramRspLast.deq.ready := false.B
 
+  val regAgentRowInfo = RegInit(0.U.asTypeOf(new AgentRowInfo(p)))
 
-  val sIdle :: sReading :: Nil = Enum(2)
+
+  val sIdle ::sReq :: sReading :: Nil = Enum(3)
   val regState = RegInit(sIdle)
 
   switch(regState) {
     is(sIdle) {
       when(qBramRsps.enq.ready &&
-        qBramRsps.count < (constBramRsps-2).U &&
+        qBramRsps.count < (constBramRsps - 3).U &&
         io.requestedAgents.ready
-      ){
+      ) {
         io.unassignedAgents.ready := true.B
         when(io.unassignedAgents.fire()) {
           val agentReq = io.unassignedAgents.bits
@@ -150,40 +152,44 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
           io.agentRowAddrReq.req.valid := true.B
           io.agentRowAddrReq.rsp.ready := true.B
           io.agentRowAddrReq.req.bits.addr := agentReq.agent
-          val agentRowInfo = io.agentRowAddrReq.rsp.bits.rdata.asTypeOf(new AgentRowInfo(p))
+          regAgentRowInfo := io.agentRowAddrReq.rsp.bits.rdata.asTypeOf(new AgentRowInfo(p))
 
-          qBramRspLast.enq.valid := true.B
-          qBramRspLast.enq.bits := agentRowInfo.length === 1.U
-
-          when(agentRowInfo.length > 0.U) {
-
-            regNumBramWordsLeft := agentRowInfo.length-1.U
-            regAgentRowAddr := agentRowInfo.rowAddr
-
-            // Make request to BRAM
-            io.bramReq.req.writeEn := false.B
-            io.bramReq.req.addr := agentRowInfo.rowAddr
-
-            // Prepare the rsp queue for a Bram rsp next cycle
-            regBramRspValid := true.B
-          }
-          when (agentRowInfo.length > 1.U) {
-            regState := sReading
-          }
-
-          when (agentRowInfo.length === 1.U) {
-            qBramRspLast.enq.bits := true.B
-            io.requestedAgents.valid := true.B
-            io.requestedAgents.bits := agentReq
-            regState := sIdle
-          }
+          regState := sReq
 
         }
       }
     }
+    is (sReq) {
+
+          qBramRspLast.enq.valid := true.B
+          qBramRspLast.enq.bits := regAgentRowInfo.length === 1.U
+
+          when(regAgentRowInfo.length > 0.U) {
+
+            regNumBramWordsLeft := regAgentRowInfo.length-1.U
+            regAgentRowAddr := regAgentRowInfo.rowAddr
+
+            // Make request to BRAM
+            io.bramReq.req.writeEn := false.B
+            io.bramReq.req.addr := regAgentRowInfo.rowAddr
+
+            // Prepare the rsp queue for a Bram rsp next cycle
+            regBramRspValid := true.B
+          }
+          when (regAgentRowInfo.length > 1.U) {
+            regState := sReading
+          }
+
+          when (regAgentRowInfo.length === 1.U) {
+            qBramRspLast.enq.bits := true.B
+            io.requestedAgents.valid := true.B
+            io.requestedAgents.bits := regAgentReq
+            regState := sIdle
+          }
+
+        }
     is(sReading) {
       // Fetch more data from BRAM
-
       when(io.requestedAgents.ready && qBramRsps.count < (constBramRsps-2).U) {
 
         io.bramReq.req.writeEn := false.B

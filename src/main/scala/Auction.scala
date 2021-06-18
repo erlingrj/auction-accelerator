@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import fpgatidbits.PlatformWrapper._
 import fpgatidbits.dma._
-import fpgatidbits.ocm.{SimpleDualPortBRAM, SinglePortBRAM}
+import fpgatidbits.ocm.{FPGAQueue, SimpleDualPortBRAM, SinglePortBRAM}
 import fpgatidbits.streams._
 import fpgatidbits.synthutils.PrintableParam
 
@@ -33,7 +33,7 @@ class AuctionParams(
   def bramAddrWidth: Int = log2Ceil(maxProblemSize*maxProblemSize / (nPEs)) //Enough to store max problemsize
 
   def agentRowStoreParams: RegStoreParams = new RegStoreParams(1,1,0, agentWidth)
-  def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs + 1,1 ,0,agentWidth)
+  def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs + 1,0 ,1,agentWidth)
 }
 
 class AppControlSignals extends Bundle {
@@ -89,8 +89,8 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   val dataMux = Module(new DataDistributor(ddP))
 
   // create some queues
-  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
-  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
+  val qUnassignedAgents = Module(new FPGAQueue(gen=new AgentInfo(ap.bitWidth), entries=16))
+  val qRequestedAgents = Module(new FPGAQueue(gen=new AgentInfo(ap.bitWidth), entries=16))
 
 
   // On-chip-memory
@@ -132,8 +132,8 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
   memWriter.io.in <> accountant.io.writeBackStream.wrData
   memWriter.io.start := accountant.io.writeBackStream.start
-  memWriter.io.baseAddr := io.rfIn.baseAddrRes
-  memWriter.io.byteCount := io.rfIn.nObjects*(8*2).U //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
+  memWriter.io.baseAddr := accountant.io.writeBackStream.baseAddr
+  memWriter.io.byteCount := accountant.io.writeBackStream.byteCount //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
   accountant.io.writeBackStream.finished := memWriter.io.finished
 
   val peP = new ProcessingElementParams(
@@ -162,7 +162,7 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
   search.io.resultOut <> accountant.io.searchResultIn
   accountant.io.priceStoreS1 <> priceStore.io.rPorts.last
-  accountant.io.priceStoreS2 <> priceStore.io.wPorts(0)
+  accountant.io.priceStoreS2 <> priceStore.io.rwPorts(0)
 
   // MemController <> qUnassigned <> Controller <> Auction
   memController.io.unassignedAgents <> qUnassignedAgents.io.deq

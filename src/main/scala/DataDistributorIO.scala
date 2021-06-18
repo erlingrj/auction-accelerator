@@ -3,6 +3,7 @@ package auction
 import chisel3._
 import chisel3.util._
 import fpgatidbits.dma.MemReqParams
+import fpgatidbits.ocm.FPGAQueue
 import fpgatidbits.synthutils.PrintableParam
 
 class DataDistributorParams(
@@ -45,7 +46,7 @@ class DataDistributorIO(p: DataDistributorParams) extends Bundle {
 class DataDistributor(p: DataDistributorParams) extends Module {
   val io = IO(new DataDistributorIO(p))
 
-  val qData = Module(new Queue(new BramMemWord(p.nPEs, p.bitWidth, p.agentWidth), 8))
+  val qData = Module(new FPGAQueue(new BramMemWord(p.nPEs, p.bitWidth, p.agentWidth), 8))
   io.bramWordIn <> qData.io.enq
 
 

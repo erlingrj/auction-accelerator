@@ -79,11 +79,15 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
 
   val constBackDownCount = 5
 
-  val sIdle :: sSetupBram :: sSetupQueues :: sRunning :: sWriteBack :: sDone :: Nil = Enum(6)
+  val sIdle :: sSetupBram1 :: sSetupBram2 :: sSetupQueues :: sRunning :: sWriteBack :: sDone :: Nil = Enum(7)
 
   val regState = RegInit(sIdle)
   val regCount = RegInit(0.U(ap.agentWidth.W))
   val regBackDownCount = RegInit(0.U(log2Ceil(constBackDownCount).W))
+
+  val regBaseAddr = RegInit(0.U(32.W))
+  val regNCols = RegInit(0.U(32.W))
+  val regNRows= RegInit(0.U(32.W))
 
   // Connect memory requested to auction controller
   io.requestedAgentsIn <> io.requestedAgentsOut
@@ -96,14 +100,21 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
     is (sIdle) {
       // Wait for start signal
       when (io.rfInfo.start === true.B) {
-        regState := sSetupBram
+        regState := sSetupBram1
         regCount := io.rfInfo.nAgents - 1.U
       }
     }
-    is (sSetupBram) {
-      io.dram2bram_baseAddr := io.rfInfo.baseAddr
-      io.dram2bram_nRows := io.rfInfo.nAgents
-      io.dram2bram_nCols := io.rfInfo.nObjects
+    is (sSetupBram1) {
+      regBaseAddr := io.rfInfo.baseAddr
+      regNRows := io.rfInfo.nAgents
+      regNCols := io.rfInfo.nObjects
+
+      regState := sSetupBram2
+    }
+    is (sSetupBram2) {
+      io.dram2bram_baseAddr := regBaseAddr
+      io.dram2bram_nRows := regNRows
+      io.dram2bram_nCols := regNCols
       io.dram2bram_start := true.B
 
       when (io.dram2bram_finished) {

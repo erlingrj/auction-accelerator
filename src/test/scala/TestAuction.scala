@@ -3,12 +3,15 @@ package auction
 import org.scalatest._
 import chiseltest._
 import chisel3._
+import chiseltest.internal.VerilatorBackendAnnotation
+import chiseltest.legacy.backends.verilator.VerilatorFlags
 import fpgatidbits.PlatformWrapper._
-
 import fpgatidbits.PlatformWrapper.GenericAccelImplicits._
-
+import chiseltest.experimental.TestOptionBuilder._
+import chiseltest.legacy.backends.verilator.VerilatorCFlags
 class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
 
+  val verilator = Seq(VerilatorBackendAnnotation, VerilatorFlags(Seq("-Wno-COMBDLY","-y /home/erling/dev/chisel/auction-accelerator/fpga-tidbits/src/main/resources/verilog")))
   val ap = new AuctionParams(
     nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 16
   )
@@ -60,7 +63,7 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
       nPEs = 8, bitWidth = 8, memWidth = 64, maxProblemSize = 16
     )
 
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")).withAnnotations(verilator) { c =>
       val nAgents = 10
       val nObjects = 10
       val baseAddr = 0
@@ -102,7 +105,7 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
   it should "TesterWrapper mem iface" in {
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")).withAnnotations(verilator) { c =>
       c.writeReg("rfIn_nAgents", 4.U)
       c.writeReg("rfIn_nObjects", 4.U)
       c.writeReg("rfIn_baseAddr", 0.U)
@@ -124,7 +127,7 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   it should "work on multiple simple 4x4 example" in {
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")).withAnnotations(verilator) { c =>
       val baseAddrRes = 1024
 
       c.writeReg("rfIn_nAgents", 4.U)
@@ -194,7 +197,7 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
   it should "work on simple 4x4 example" in {
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")).withAnnotations(verilator) { c =>
 
       val baseAddrRes = 1024
       c.writeReg("rfIn_nAgents", 4.U)
@@ -243,7 +246,7 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
 
 
   it should "work on more complicated example" in {
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")).withAnnotations(verilator) { c =>
       val nAgents = 4
       val nObjects = 5
       val baseAddr = 0
@@ -291,7 +294,7 @@ class TestAuction extends FlatSpec with ChiselScalatestTester with Matchers {
       nPEs = 4, bitWidth = 16, memWidth = 64, maxProblemSize = 16
     )
 
-    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")) { c =>
+    test(new TesterWrapper({ p => new Auction(p, ap) }, "_dump")).withAnnotations(verilator) { c =>
       val nAgents = 10
       val nObjects = 10
       val baseAddr = 0

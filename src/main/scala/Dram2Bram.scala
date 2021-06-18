@@ -78,11 +78,11 @@ class Dram2Bram2(val p: MemCtrlParams) extends Module {
   rg.io.ctrl.byteCount := DontCare
   rg.io.ctrl.start := false.B
   // FIFO for reciving DRAM memory data
-  val rspQ = Module(new Queue(new GenericMemoryResponse(p.mrp), 2)).io
+  val rspQ = Module(new FPGAQueue(new GenericMemoryResponse(p.mrp), 2)).io
   io.dramRsp <> rspQ.enq
   rspQ.deq.ready := false.B
 
-  val sIdle :: sParse :: sSendOff :: Nil = Enum(3)
+  val sIdle :: sCalcByte :: sParse :: sSendOff :: Nil = Enum(4)
   val regState = RegInit(sIdle)
 
   val regBramLine = RegInit(0.U.asTypeOf(new BramLine(p)))
@@ -96,7 +96,7 @@ class Dram2Bram2(val p: MemCtrlParams) extends Module {
   val regAgentRowInfo = RegInit(0.U.asTypeOf(new AgentRowInfo(p)))
   val regAgentHasValid = RegInit(false.B)
   val regRowDone = RegInit(false.B)
-
+  val regNElements = RegInit(0.U(32.W))
 
   val regNRows = RegInit(0.U((p.agentWidth.W)))
   val regNCols = RegInit(0.U((p.agentWidth.W)))
@@ -109,13 +109,9 @@ class Dram2Bram2(val p: MemCtrlParams) extends Module {
         rg.io.ctrl.throttle := false.B
         rg.io.ctrl.baseAddr := io.baseAddr
 
-        val nElements = Wire(UInt(32.W))
-        nElements := io.nRows * io.nCols
+        regNElements := io.nRows * io.nCols
 
-        val byteCount = (nElements << 3.U).asUInt
-        rg.io.ctrl.byteCount := byteCount
-        rg.io.ctrl.start := true.B
-
+        regState := sCalcByte
 
         regBramLineIdx := 0.U
         regDramRowCnt := 0.U
@@ -128,13 +124,20 @@ class Dram2Bram2(val p: MemCtrlParams) extends Module {
         regAgentRowInfo.length := 0.U
 
         regAgentHasValid := false.B
+      }
+    }
+    is (sCalcByte) {
+        val byteCount = (regNElements << 3.U).asUInt
+        rg.io.ctrl.byteCount := byteCount
+        rg.io.ctrl.start := true.B
+
         regState := sParse
 
         regNCols := io.nCols
         regNRows := io.nRows
         regBramLine := 0.U.asTypeOf(new BramLine(p))
       }
-    }
+
     is(sParse) {
       rspQ.deq.ready := true.B
       when(rspQ.deq.fire()) {
