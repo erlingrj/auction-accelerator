@@ -45,6 +45,8 @@ class Dram2BramIO(val p: MemCtrlParams) extends Bundle {
   val nRows = Input(UInt(log2Ceil(p.maxProblemSize).W))
   val nCols = Input(UInt(log2Ceil(p.maxProblemSize).W))
 
+  val nElements = Input(UInt((2*p.agentWidth).W))
+
   // Interface to module storing the agentRowAddresses
   // We need nPEs because worst case each memory fetch leads to nPE rows.
   val agentRowAddress = new RegStoreTransaction(new AgentRowInfo(p),p.agentRowStoreParams)
@@ -109,7 +111,7 @@ class Dram2Bram2(val p: MemCtrlParams) extends Module {
         rg.io.ctrl.throttle := false.B
         rg.io.ctrl.baseAddr := io.baseAddr
 
-        regNElements := io.nRows * io.nCols
+        regNElements := io.nElements
 
         regState := sCalcByte
 
@@ -216,6 +218,21 @@ class Dram2Bram2(val p: MemCtrlParams) extends Module {
   }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Horrible class. Dont even bother looking
 class Dram2Bram(val p: MemCtrlParams) extends Module {
   val io = IO(new Dram2BramIO(p))
@@ -230,7 +247,7 @@ class Dram2Bram(val p: MemCtrlParams) extends Module {
   rg.io.ctrl.byteCount := DontCare
   rg.io.ctrl.start := false.B
   // FIFO for reciving DRAM memory data
-  val rspQ = Module(new Queue(new GenericMemoryResponse(p.mrp), 64/p.bitWidth)).io
+  val rspQ = Module(new FPGAQueue(new GenericMemoryResponse(p.mrp), 64/p.bitWidth)).io
   io.dramRsp <> rspQ.enq
   rspQ.deq.ready := false.B
 

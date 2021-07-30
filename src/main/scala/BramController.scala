@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import fpgatidbits.dma.{MemReqParams, RoundUpAlign}
 import fpgatidbits.ocm.{FPGAQueue, OCMMasterIF}
+
 import fpgatidbits.synthutils.PrintableParam
 
 // The controller monitors the Register file and sets up the initial queues for the problem
@@ -161,6 +162,9 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
     }
     is (sReq) {
 
+        io.requestedAgents.valid := true.B
+        io.requestedAgents.bits := regAgentReq
+
           qBramRspLast.enq.valid := true.B
           qBramRspLast.enq.bits := regAgentRowInfo.length === 1.U
 
@@ -182,12 +186,10 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
           when (regAgentRowInfo.length === 1.U) {
             qBramRspLast.enq.bits := true.B
-            io.requestedAgents.valid := true.B
-            io.requestedAgents.bits := regAgentReq
             regState := sIdle
           }
 
-        }
+    }
     is(sReading) {
       // Fetch more data from BRAM
       when(io.requestedAgents.ready && qBramRsps.count < (constBramRsps-2).U) {
@@ -205,8 +207,8 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
           when(regNumBramWordsLeft === 1.U) {
           qBramRspLast.enq.bits := true.B
-          io.requestedAgents.valid := true.B
-          io.requestedAgents.bits := regAgentReq
+//          io.requestedAgents.valid := true.B
+//          io.requestedAgents.bits := regAgentReq
           regState := sIdle
         }
       }

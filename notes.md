@@ -11,8 +11,32 @@ The first is a parallell processing parallell Search the second is sequential an
 
 
 
+## Dependency prediction
+We need:
+- cntUnresolved
+- cntRequested
+- cntUnassigned
+
+
 
 ## Log
+
+## July 26
+- I need to check and verify my assumption about sparse problems with Edmund
+- Also I need to stop improving timing. 
+- On dev-side I need to implement the dependency prediction scheme.
+
+## LAST DAY BEFORE SUMMER
+- I definetly started optimzing for timing too late. Now I have spent several days trying to improve the critical path.
+- I think I am dpwn to around 6ns which should give 167Mhz.
+- But I need more improvements:
+1. Make regAssignments into also a BRAM. No reason to use registers for that
+2. Fix the Controller. It gets on the CP when it is muxing those queues and we get the whole "back-down counter". That thing should be fixed. A stupid hack.
+3. Consider making GreyCounters instead of using normal counters with adders. Could be an interesting project for Chisel also
+4. COnsider making a pipelined Adder generator for Chisel
+
+
+
 ## Last time
 - The changes I made to the TesterWrappeMemory is fucking it up somehow.
 - in the 4x4 PEs example we dont get the expected order of mem resps back. What could be the issue??

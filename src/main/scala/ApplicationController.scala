@@ -37,6 +37,7 @@ class ApplicationControllerIO(ap: ApplicationControllerParams) extends Bundle {
   val rfCtrl  = new AppControlSignals()
   val rfInfo = new AppInfoSignals()
 
+  val nElements = Output(UInt((ap.agentWidth*2).W))
 
   val dram2bram_start = Output(Bool())
   val dram2bram_finished = Input(Bool())
@@ -49,6 +50,9 @@ class ApplicationControllerIO(ap: ApplicationControllerParams) extends Bundle {
 
   val requestedAgentsIn = Flipped(Decoupled(new AgentInfo(ap.bitWidth)))
   val requestedAgentsOut = Decoupled(new AgentInfo(ap.bitWidth))
+
+  val nUnassigned = Input(UInt(8.W))
+  val nRequested = Input(UInt(8.W))
 
   val doWriteBack = Output(Bool())
   val writeBackDone = Input(Bool())
@@ -86,9 +90,13 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
   val regBackDownCount = RegInit(0.U(log2Ceil(constBackDownCount).W))
 
   val regBaseAddr = RegInit(0.U(32.W))
-  val regNCols = RegInit(0.U(32.W))
-  val regNRows= RegInit(0.U(32.W))
+  val regNCols = RegInit(0.U(ap.agentWidth.W))
+  val regNRows= RegInit(0.U(ap.agentWidth.W))
+  val regNElements = RegInit(0.U((ap.agentWidth*2).W))
 
+
+  regNElements := regNCols * regNRows
+  io.nElements := regNElements
   // Connect memory requested to auction controller
   io.requestedAgentsIn <> io.requestedAgentsOut
 
@@ -102,13 +110,12 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
       when (io.rfInfo.start === true.B) {
         regState := sSetupBram1
         regCount := io.rfInfo.nAgents - 1.U
+        regBaseAddr := io.rfInfo.baseAddr
+        regNRows := io.rfInfo.nAgents
+        regNCols := io.rfInfo.nObjects
       }
     }
     is (sSetupBram1) {
-      regBaseAddr := io.rfInfo.baseAddr
-      regNRows := io.rfInfo.nAgents
-      regNCols := io.rfInfo.nObjects
-
       regState := sSetupBram2
     }
     is (sSetupBram2) {
@@ -142,14 +149,20 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
       io.unassignedAgentsOut <> io.unassignedAgentsIn
 
       // Then we check for finished condition
-      when (!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid && regBackDownCount === 0.U) {
+      when(RegNext(RegNext(io.nUnassigned)) === 0.U && RegNext(io.nUnassigned) ===0.U && io.nUnassigned === 0.U &&  io.nRequested === 0.U && RegNext(io.nRequested) === 0.U) {
         regState := sWriteBack
-      }.elsewhen(!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid) {
-          regBackDownCount := regBackDownCount - 1.U
-        }.otherwise {
-        regBackDownCount := constBackDownCount.U
       }
     }
+
+//      when (!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid && regBackDownCount === 0.U) {
+//        regState := sWriteBack
+//      }.elsewhen(!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid) {
+//          regBackDownCount := regBackDownCount - 1.U
+//        }.otherwise {
+//        regBackDownCount := constBackDownCount.U
+//      }
+//    }
+
     is (sWriteBack) {
       io.doWriteBack := true.B
       when (io.writeBackDone) {

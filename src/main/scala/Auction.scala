@@ -65,7 +65,7 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
   val rdP = new StreamReaderParams(
     streamWidth = ap.memWidth, fifoElems = 8, mem = p.toMemReqParams(),
-    maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = true
+    maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = false
   )
   // Create all the submodules
   val mcP = new MemCtrlParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
@@ -95,8 +95,10 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
   // On-chip-memory
   val bram = Module(new SimpleDualPortBRAM(addrBits=ap.bramAddrWidth, dataBits=ap.bramDataWidth))
-  val priceStore = Module(new RegStore(gen=0.U(ap.bitWidth.W), p=ap.priceRegStoreParams))
   val agentRowStore = Module(new RegStore(gen=new AgentRowInfo(p=mcP), p=ap.agentRowStoreParams))
+
+  val bsP = new BramStoreParams(bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs)
+  val priceStore = Module(new BramStore(bsP))
 
 
   priceStore.reset := controller.io.reinit
@@ -115,7 +117,7 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   dram2bram.io.agentRowAddress <> agentRowStore.io.wPorts(0)
   controller.io.dram2bram_finished := dram2bram.io.finished
 
-
+  dram2bram.io.nElements := controller.io.nElements
 
 
   // Dram writer of the result
@@ -157,12 +159,22 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   for (i <- 0 until ap.nPEs) {
     dataMux.io.peOut(i) <> pes(i).io.rewardIn
     pes(i).io.PEResultOut <> search.io.benefitIn(i)
-    pes(i).io.priceStore <> priceStore.io.rPorts(i)
+    pes(i).io.price <> priceStore.io.prices(i)
+    priceStore.io.idxs.bits(i) := pes(i).io.agentIdx
   }
+  priceStore.io.idxs.valid := pes.map(_.io.agentIdxReqValid).reduce(_ || _)
+
 
   search.io.resultOut <> accountant.io.searchResultIn
-  accountant.io.priceStoreS1 <> priceStore.io.rPorts.last
-  accountant.io.priceStoreS2 <> priceStore.io.rwPorts(0)
+  accountant.io.bramStoreReadData := priceStore.io.accReadData
+  priceStore.io.accReadAddr := accountant.io.bramStoreReadAddr
+
+  priceStore.io.accWriteDataValid := accountant.io.bramStoreWriteDataValid
+  priceStore.io.accWriteData := accountant.io.bramStoreWriteData
+  priceStore.io.accWriteAddr := accountant.io.bramStoreWriteAddr
+  priceStore.io.dumpOut <> accountant.io.bramStoreDump
+  priceStore.io.dump := accountant.io.bramStoreDumpStart
+
 
   // MemController <> qUnassigned <> Controller <> Auction
   memController.io.unassignedAgents <> qUnassignedAgents.io.deq
@@ -179,6 +191,10 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
   controller.io.rfInfo := io.rfIn
   io.rfOut := controller.io.rfCtrl
+
+
+  controller.io.nUnassigned := qUnassignedAgents.io.count
+  controller.io.nRequested := qRequestedAgents.io.count
 
   val running = RegInit(false.B)
   val regCycleCount = RegInit(0.U(32.W))

@@ -23,7 +23,6 @@ class ProcessingElementParams(
     )
   }
   def agentWidth = log2Ceil(maxProblemSize)
-  def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs,0 ,1,agentWidth)
 }
 
 class PERewardIO(private val ap: ProcessingElementParams) extends Bundle {
@@ -34,7 +33,10 @@ class PERewardIO(private val ap: ProcessingElementParams) extends Bundle {
 
 class ProcessingElementIO(ap: ProcessingElementParams) extends Bundle {
 
-  val priceStore = new RegStoreTransaction(0.U(ap.bitWidth.W),ap.priceRegStoreParams)
+  val price = Input(UInt(ap.bitWidth.W))
+  val agentIdx = Output(UInt(ap.agentWidth.W))
+  val agentIdxReqValid = Output(Bool())
+
   val rewardIn = Flipped(Decoupled(new PERewardIO(ap)))
   val stP = new SearchTreeParams(
     bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs
@@ -44,10 +46,9 @@ class ProcessingElementIO(ap: ProcessingElementParams) extends Bundle {
   def driveDefaults() = {
     PEResultOut.valid := false.B
     PEResultOut.bits := DontCare
-    priceStore.req.valid:= false.B
-    priceStore.rsp.ready := false.B
-    priceStore.req.bits := DontCare
     rewardIn.ready := false.B
+    agentIdx := DontCare
+    agentIdxReqValid := false.B
   }
 }
 
@@ -57,19 +58,22 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
   val sIdle :: sProcess  :: sFinished :: sStall :: Nil = Enum(4)
 
 
-
-  val s1_price = RegInit(0.U(ap.bitWidth.W))
   val s1_last = RegInit(0.U(ap.bitWidth.W))
   val s1_reward = RegInit(0.U(ap.bitWidth.W))
   val s1_idx = RegInit(0.U(ap.bitWidth.W))
   val s1_valid = RegInit(false.B)
 
-  val s2_benefit = RegInit(0.U(ap.bitWidth.W))
-  val s2_oldPrice = RegInit(0.U(ap.bitWidth.W))
+  val s2_price = RegInit(0.U(ap.bitWidth.W))
   val s2_idx = RegInit(0.U(ap.bitWidth.W))
   val s2_last = RegInit(false.B)
   val s2_valid = RegInit(false.B)
+  val s2_reward = RegInit(0.U(ap.bitWidth.W))
 
+  val s3_benefit = RegInit(0.U(ap.bitWidth.W))
+  val s3_oldPrice = RegInit(0.U(ap.bitWidth.W))
+  val s3_valid = RegInit(false.B)
+  val s3_last = RegInit(0.U(ap.bitWidth.W))
+  val s3_idx = RegInit(0.U(ap.bitWidth.W))
 
   // Drive signals to default
   io.driveDefaults()
@@ -81,7 +85,8 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
     val fire = io.rewardIn.fire()
     s1_valid := fire
     when (fire) {
-      s1_price := io.priceStore.read(io.rewardIn.bits.idx)
+      io.agentIdx := io.rewardIn.bits.idx
+      io.agentIdxReqValid := true.B
       s1_idx := io.rewardIn.bits.idx
       s1_last := io.rewardIn.bits.last
       s1_reward := io.rewardIn.bits.reward
@@ -91,16 +96,22 @@ class ProcessingElement(ap: ProcessingElementParams) extends MultiIOModule {
     s2_valid := s1_valid
     s2_idx := s1_idx
     s2_last := s1_last
-    val diff = s1_reward.zext() - s1_price.zext()
-    s2_benefit :=  Mux(diff(ap.bitWidth) === 1.U, 0.U, diff(ap.bitWidth-1, 0))
-    s2_oldPrice := s1_price
+    s2_reward := s1_reward
+    s2_price := io.price
 
+    // stage 3
+    val diff = s2_reward.zext() - s2_price.zext()
+    s3_benefit :=  Mux(diff(ap.bitWidth) === 1.U, 0.U, diff(ap.bitWidth-1, 0))
+    s3_oldPrice := s2_price
+    s3_valid := s2_valid
+    s3_last := s2_last
+    s3_idx := s2_idx
   }
 
-  io.PEResultOut.valid := s2_valid
-  io.PEResultOut.bits.last := s2_last
-  io.PEResultOut.bits.id := s2_idx
-  io.PEResultOut.bits.benefit := s2_benefit
-  io.PEResultOut.bits.oldPrice := s2_oldPrice
+  io.PEResultOut.valid := s3_valid
+  io.PEResultOut.bits.last := s3_last
+  io.PEResultOut.bits.id := s3_idx
+  io.PEResultOut.bits.benefit := s3_benefit
+  io.PEResultOut.bits.oldPrice := s3_oldPrice
 
 }

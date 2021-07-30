@@ -38,6 +38,9 @@ class BramStoreIO(p: BramStoreParams) extends Bundle {
   val accWriteData = Input(UInt(p.bitWidth.W))
   val accWriteDataValid = Input(Bool())
 
+  val dump = Input(Bool())
+  val dumpOut = Decoupled(UInt(p.bitWidth.W))
+
 }
 
 class BramStoreWord(p: BramStoreParams) extends Bundle {
@@ -59,6 +62,8 @@ class BramStore(p: BramStoreParams) extends MultiIOModule {
   mem.io.write.req.writeData := DontCare
   mem.io.read.req.writeEn := false.B
   mem.io.read.req.writeData := DontCare
+  io.dumpOut.valid := false.B
+  io.dumpOut.bits := DontCare
 
   // Each cycle we read from the memory
   val regMemRead = RegInit(0.U.asTypeOf(new BramStoreWord(p)))
@@ -89,7 +94,7 @@ class BramStore(p: BramStoreParams) extends MultiIOModule {
 
   val accRead = Wire(UInt(p.bitWidth.W))
   accRead := memRead.prices(io.accReadAddr)
-  val forward = io.accReadAddr === regAccWriteAddr
+  val forward = io.accReadAddr === regAccWriteAddr && RegNext(io.accWriteDataValid)
 
   // Do accountant writes
   when(io.accWriteDataValid) {
@@ -106,5 +111,19 @@ class BramStore(p: BramStoreParams) extends MultiIOModule {
     io.accReadData := regAccWriteData
   }.otherwise{
     io.accReadData := accRead
+  }
+
+  val dumpCnt = RegInit(0.U(p.agentWidth.W))
+  when (io.dump) {
+    io.dumpOut.bits := memRead.prices(dumpCnt)
+    io.dumpOut.valid := true.B
+    when (io.dumpOut.fire()) {
+      dumpCnt := dumpCnt + 1.U
+    }
+  }
+
+  when (reset.asBool()) {
+    mem.io.write.req.writeEn := true.B
+    mem.io.write.req.writeData := 0.U
   }
 }

@@ -61,8 +61,17 @@ class AccountantIO(ap: AccountantParams) extends Bundle
 
   val writeBackStream = new WriteBackStream(ap)
 
-  val priceStoreS1 = new RegStoreTransaction(0.U(ap.bitWidth.W),ap.priceRegStoreParams)
-  val priceStoreS2 = new RegStoreTransaction(0.U(ap.bitWidth.W),ap.priceRegStoreParams)
+  // Interactions with the BramStore for prices
+  val bramStoreReadAddr = Output(UInt(ap.agentWidth.W))
+  val bramStoreReadData = Input(UInt(ap.bitWidth.W))
+
+  val bramStoreWriteAddr = Output(UInt(ap.agentWidth.W))
+  val bramStoreWriteData = Output(UInt(ap.bitWidth.W))
+  val bramStoreWriteDataValid = Output(Bool())
+
+  val bramStoreDump = Flipped(Decoupled(UInt(ap.bitWidth.W)))
+  val bramStoreDumpStart = Output(Bool())
+
 
   def driveDefaults(): Unit = {
     searchResultIn.ready := false.B
@@ -75,12 +84,13 @@ class AccountantIO(ap: AccountantParams) extends Bundle
     writeBackStream.wrData.bits := DontCare
     writeBackStream.baseAddr := DontCare
     writeBackStream.byteCount := DontCare
-    priceStoreS2.req.valid := false.B
-    priceStoreS2.req.bits := DontCare
-    priceStoreS2.rsp.ready := false.B
-    priceStoreS1.req.valid := false.B
-    priceStoreS1.req.bits := DontCare
-    priceStoreS1.rsp.ready := false.B
+    bramStoreReadAddr := DontCare
+    bramStoreWriteAddr := DontCare
+    bramStoreWriteData := DontCare
+    bramStoreWriteDataValid := false.B
+
+    bramStoreDump.ready := false.B
+    bramStoreDumpStart := false.B
   }
 }
 
@@ -97,6 +107,13 @@ class Accountant(ap: AccountantParams) extends Module {
   val s1_bid = RegInit(0.U(ap.bitWidth.W))
   val s1_currentPrice = RegInit(0.U(ap.bitWidth.W))
   val s1_valid = RegInit(false.B)
+
+
+  val priceReadAddr = WireInit(0.U(ap.agentWidth.W))
+  val priceReadRsp = Wire(UInt(ap.bitWidth.W))
+
+  io.bramStoreReadAddr := priceReadAddr
+  priceReadRsp := io.bramStoreReadData
 
 
   // State machine (so we can do the writeback stuff)
@@ -131,7 +148,8 @@ class Accountant(ap: AccountantParams) extends Module {
         io.requestedAgents.ready := true.B
 
         val searchRes = io.searchResultIn.bits
-        s1_currentPrice := io.priceStoreS1.read(searchRes.winner)
+        priceReadAddr := searchRes.winner
+        s1_currentPrice := priceReadRsp
         s1_object := searchRes.winner
         s1_bid := searchRes.bid
         s1_agent := io.requestedAgents.bits.agent
@@ -151,7 +169,9 @@ class Accountant(ap: AccountantParams) extends Module {
           regAssignments(s1_object).agent := s1_agent
           regAssignments(s1_object).valid := true.B
 
-          io.priceStoreS2.write(s1_bid, s1_object)
+          io.bramStoreWriteData := s1_bid
+          io.bramStoreWriteAddr := s1_object
+          io.bramStoreWriteDataValid := true.B
         }.elsewhen(s1_bid > 0.U) {
           // Mis-speculation. Redo
           io.unassignedAgents.valid := true.B
@@ -188,25 +208,18 @@ class Accountant(ap: AccountantParams) extends Module {
       }
     }
     is (sWriteBackPrices1) {
+      io.bramStoreDumpStart := true.B
       io.writeBackStream.start := true.B
-      io.writeBackStream.wrData.valid := false.B
-      when (regWBCount === regNCols) {
-        regWBCount := 0.U
-        regWBState := sWaitForFinished
-      }.otherwise {
+      io.writeBackStream.wrData <> io.bramStoreDump
 
-        regWBPrice := io.priceStoreS2.read(regWBCount)
-        regWBState := sWriteBackPrices2
-      }
-    }
-   is (sWriteBackPrices2) {
-     io.writeBackStream.wrData.valid := true.B
-     io.writeBackStream.start := true.B
-     io.writeBackStream.wrData.bits := regWBPrice
-     when (io.writeBackStream.wrData.fire()) {
+      when (io.bramStoreDump.fire()) {
        regWBCount := regWBCount + 1.U
-       regWBState := sWriteBackPrices1
-     }
+        when (regWBCount === regNCols-1.U) {
+          regWBCount := 0.U
+          regWBState := sWaitForFinished
+
+        }
+      }
 
    }
    is (sWaitForFinished) {

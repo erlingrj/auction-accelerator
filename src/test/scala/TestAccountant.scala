@@ -20,18 +20,10 @@ class TestAccountant extends FlatSpec with ChiselScalatestTester with Matchers {
 
   def expectRead(c: Accountant, addr: Int, res: Int) = {
   fork {
-    c.io.priceStoreS1.req.expectDequeue(chiselTypeOf(c.io.priceStoreS1.req).bits.Lit(
-      _.wen -> false.B,
-      _.wdata -> 0.U,
-      _.addr -> addr.U
-    ))
+    c.io.bramStoreReadAddr.expect(addr.U)
   } .fork {
-    c.io.priceStoreS1.rsp.enqueue(chiselTypeOf(c.io.priceStoreS1.rsp).bits.Lit(
-      _.rdata -> res.U
-    ))
-
+    c.io.bramStoreReadData.poke(res.U)
   }.join()
-
   }
 
   def initClocks(c: Accountant): Unit = {
@@ -39,10 +31,6 @@ class TestAccountant extends FlatSpec with ChiselScalatestTester with Matchers {
     c.io.unassignedAgents.initSink().setSinkClock(c.clock)
     c.io.requestedAgents.initSource().setSourceClock(c.clock)
     c.io.writeBackStream.wrData.initSink().setSinkClock(c.clock)
-    c.io.priceStoreS2.req.initSink().setSinkClock(c.clock)
-    c.io.priceStoreS2.rsp.initSource().setSourceClock(c.clock)
-    c.io.priceStoreS1.req.initSink().setSinkClock(c.clock)
-    c.io.priceStoreS1.rsp.initSource().setSourceClock(c.clock)
   }
 
   def initRF(c: Accountant): Unit = {
@@ -64,25 +52,17 @@ class TestAccountant extends FlatSpec with ChiselScalatestTester with Matchers {
           _.winner -> obj.U
         )
       )
-    }.fork {
-      c.io.priceStoreS1.req.expectDequeue(chiselTypeOf(c.io.priceStoreS1.req).bits.Lit(
-        _.wen -> false.B,
-        _.addr -> obj.U,
-        _.wdata -> 0.U
-      ))
-    }.fork {
-      c.io.priceStoreS1.rsp.enqueue(chiselTypeOf(c.io.priceStoreS1.rsp).bits.Lit(
-        _.rdata -> oldPrice.U
-      ))
-    }.join()
-
-    if (bid > oldPrice) {
-      c.io.priceStoreS2.req.expectDequeue(chiselTypeOf(c.io.priceStoreS2.req).bits.Lit(
-        _.wen -> true.B,
-        _.addr -> obj.U,
-        _.wdata -> bid.U
-      ))
-    }
+    }.fork.withRegion(Monitor) {
+      c.io.bramStoreReadAddr.expect(obj.U)
+      c.io.bramStoreReadData.poke(oldPrice.U)
+      c.clock.step()
+      if (bid > oldPrice) {
+        c.io.bramStoreWriteDataValid.expect(true.B)
+        c.io.bramStoreWriteData.expect(bid.U)
+        c.io.bramStoreWriteAddr.expect(obj.U)
+        c.clock.step()
+      }
+    }.joinAndStep(c.clock)
   }
 
   behavior of "AccountantExtPricePipelined"
@@ -94,8 +74,7 @@ class TestAccountant extends FlatSpec with ChiselScalatestTester with Matchers {
 
       c.io.unassignedAgents.valid.expect(false.B)
       c.io.searchResultIn.ready.expect(true.B)
-      c.io.priceStoreS1.req.valid.expect(false.B)
-      c.io.priceStoreS1.rsp.ready.expect(false.B)
+      c.io.bramStoreWriteDataValid.expect(false.B)
       c.io.writeBackStream.start.expect(false.B)
     }
   }
