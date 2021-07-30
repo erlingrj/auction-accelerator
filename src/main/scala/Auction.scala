@@ -89,8 +89,6 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   val dataMux = Module(new DataDistributor(ddP))
 
   // create some queues
-  val qUnassignedAgents = Module(new FPGAQueue(gen=new AgentInfo(ap.bitWidth), entries=16))
-  val qRequestedAgents = Module(new FPGAQueue(gen=new AgentInfo(ap.bitWidth), entries=16))
 
 
   // On-chip-memory
@@ -177,12 +175,10 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
 
   // MemController <> qUnassigned <> Controller <> Auction
-  memController.io.unassignedAgents <> qUnassignedAgents.io.deq
-  qUnassignedAgents.io.enq <> controller.io.unassignedAgentsOut
+  memController.io.unassignedAgents <> controller.io.unassignedAgentsOut
   controller.io.unassignedAgentsIn <> accountant.io.unassignedAgents
 
-  memController.io.requestedAgents <> qRequestedAgents.io.enq
-  qRequestedAgents.io.deq <> controller.io.requestedAgentsIn
+  memController.io.requestedAgents <> controller.io.requestedAgentsIn
   controller.io.requestedAgentsOut <> accountant.io.requestedAgents
 
   controller.io.writeBackDone := accountant.io.writeBackDone
@@ -193,13 +189,11 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   io.rfOut := controller.io.rfCtrl
 
 
-  controller.io.nUnassigned := qUnassignedAgents.io.count
-  controller.io.nRequested := qRequestedAgents.io.count
-
+  val dataMovementDone = RegInit(false.B)
   val running = RegInit(false.B)
   val regCycleCount = RegInit(0.U(32.W))
   io.rfOut.cycleCount := regCycleCount
-  when(running) {
+  when(running && dataMovementDone) {
     regCycleCount := regCycleCount + 1.U
   }.elsewhen(!running && io.rfIn.start) {
     regCycleCount := 0.U
@@ -209,6 +203,12 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
     running := io.rfIn.start
   } otherwise {
     running := !controller.io.rfCtrl.finished
+  }
+
+  when (!dataMovementDone) {
+    dataMovementDone := dram2bram.io.finished
+  } otherwise {
+    dataMovementDone := !controller.io.rfCtrl.finished
   }
 }
 

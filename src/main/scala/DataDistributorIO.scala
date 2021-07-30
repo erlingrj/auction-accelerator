@@ -46,7 +46,7 @@ class DataDistributorIO(p: DataDistributorParams) extends Bundle {
 class DataDistributor(p: DataDistributorParams) extends Module {
   val io = IO(new DataDistributorIO(p))
 
-  val qData = Module(new FPGAQueue(new BramMemWord(p.nPEs, p.bitWidth, p.agentWidth), 8))
+  val qData = Module(new FPGAQueue(new BramMemWord(p.nPEs, p.bitWidth, p.agentWidth), 1))
   io.bramWordIn <> qData.io.enq
 
 

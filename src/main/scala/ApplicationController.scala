@@ -2,7 +2,7 @@ package auction
 import chisel3._
 import chisel3.util._
 import fpgatidbits.dma.MemReqParams
-
+import fpgatidbits.ocm.FPGAQueue
 import fpgatidbits.synthutils.PrintableParam
 import fpgatidbits.synthutils.PrintableParam
 // The controller monitors the Register file and sets up the initial queues for the problem
@@ -51,9 +51,6 @@ class ApplicationControllerIO(ap: ApplicationControllerParams) extends Bundle {
   val requestedAgentsIn = Flipped(Decoupled(new AgentInfo(ap.bitWidth)))
   val requestedAgentsOut = Decoupled(new AgentInfo(ap.bitWidth))
 
-  val nUnassigned = Input(UInt(8.W))
-  val nRequested = Input(UInt(8.W))
-
   val doWriteBack = Output(Bool())
   val writeBackDone = Input(Bool())
   val reinit = Output(Bool())
@@ -65,7 +62,11 @@ class ApplicationControllerIO(ap: ApplicationControllerParams) extends Bundle {
     unassignedAgentsIn.ready := false.B
     unassignedAgentsOut.valid := false.B
     unassignedAgentsOut.bits := DontCare
+
+
+
     doWriteBack := false.B
+
     rfCtrl.finished := false.B
 
     reinit := false.B
@@ -85,9 +86,28 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
 
   val sIdle :: sSetupBram1 :: sSetupBram2 :: sSetupQueues :: sRunning :: sWriteBack :: sDone :: Nil = Enum(7)
 
+  val s2Idle :: s2SetupQueues :: s2Running :: s2Done :: Nil = Enum(4)
+
+
+  val qUnassignedAgents = Module(new FPGAQueue(gen=new AgentInfo(ap.bitWidth), entries=ap.maxProblemSize-1))
+  val qRequestedAgents = Module(new FPGAQueue(gen=new AgentInfo(ap.bitWidth), entries=ap.maxProblemSize-1))
+
+
+  qUnassignedAgents.io := DontCare
+  qUnassignedAgents.io.enq.valid := false.B
+  qUnassignedAgents.io.deq.ready := false.B
+
+  qRequestedAgents.io := DontCare
+  qRequestedAgents.io.enq.valid := false.B
+  qRequestedAgents.io.deq.ready := false.B
+
+
+  io.requestedAgentsIn <> qRequestedAgents.io.enq
+
+
   val regState = RegInit(sIdle)
+  val regState2 = RegInit(s2Idle)
   val regCount = RegInit(0.U(ap.agentWidth.W))
-  val regBackDownCount = RegInit(0.U(log2Ceil(constBackDownCount).W))
 
   val regBaseAddr = RegInit(0.U(32.W))
   val regNCols = RegInit(0.U(ap.agentWidth.W))
@@ -97,12 +117,6 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
 
   regNElements := regNCols * regNRows
   io.nElements := regNElements
-  // Connect memory requested to auction controller
-  io.requestedAgentsIn <> io.requestedAgentsOut
-
-  when (io.requestedAgentsOut.fire()) {
-    regBackDownCount := constBackDownCount.U
-  }
 
   switch (regState) {
     is (sIdle) {
@@ -126,42 +140,22 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
 
       when (io.dram2bram_finished) {
         io.dram2bram_start := false.B
-        regState := sSetupQueues
+        regState := sRunning
       }
     }
 
-    is (sSetupQueues) {
-      io.unassignedAgentsOut.valid := true.B
-      io.unassignedAgentsOut.bits.agent := regCount
-      io.unassignedAgentsOut.bits.nObjects := io.rfInfo.nObjects
-      when (io.unassignedAgentsOut.fire()) {
-        when (regCount === 0.U) {
-          regState := sRunning
-          regBackDownCount := constBackDownCount.U
-        }.otherwise {
-          regCount := regCount - 1.U
+
+    is (sRunning) {
+      when (regState2 === s2Running) {
+        // Then we check for finished condition
+        io.requestedAgentsOut <> qRequestedAgents.io.deq
+        io.unassignedAgentsOut <> qUnassignedAgents.io.deq
+        io.unassignedAgentsIn <> qUnassignedAgents.io.enq
+        when(RegNext(RegNext(qUnassignedAgents.io.count)) === 0.U && RegNext(qUnassignedAgents.io.count) ===0.U && qUnassignedAgents.io.count === 0.U &&  qRequestedAgents.io.count === 0.U && RegNext(qRequestedAgents.io.count) === 0.U) {
+          regState := sWriteBack
         }
       }
     }
-
-    is (sRunning) {
-      // Here we connect the Accountant to the Memory Controller
-      io.unassignedAgentsOut <> io.unassignedAgentsIn
-
-      // Then we check for finished condition
-      when(RegNext(RegNext(io.nUnassigned)) === 0.U && RegNext(io.nUnassigned) ===0.U && io.nUnassigned === 0.U &&  io.nRequested === 0.U && RegNext(io.nRequested) === 0.U) {
-        regState := sWriteBack
-      }
-    }
-
-//      when (!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid && regBackDownCount === 0.U) {
-//        regState := sWriteBack
-//      }.elsewhen(!io.requestedAgentsIn.valid && !io.unassignedAgentsIn.valid) {
-//          regBackDownCount := regBackDownCount - 1.U
-//        }.otherwise {
-//        regBackDownCount := constBackDownCount.U
-//      }
-//    }
 
     is (sWriteBack) {
       io.doWriteBack := true.B
@@ -174,7 +168,32 @@ class ApplicationController(ap: ApplicationControllerParams) extends Module {
       when (io.rfInfo.start) {
         io.reinit := true.B
         regState := sIdle
+        regState2 := s2Idle
       }
+    }
+  }
+
+
+  switch(regState2) {
+    is (s2Idle) {
+      when (io.rfInfo.start) {
+        regState2 := s2SetupQueues
+      }
+    }
+    is (s2SetupQueues) {
+
+        qUnassignedAgents.io.enq.valid := true.B
+        qUnassignedAgents.io.enq.bits.agent := regCount
+        qUnassignedAgents.io.enq.bits.nObjects := io.rfInfo.nObjects
+        when (qUnassignedAgents.io.enq.fire()) {
+          when (regCount === 0.U) {
+            regState2 := s2Running
+          }.otherwise {
+            regCount := regCount - 1.U
+          }
+        }
+    }
+    is(s2Running) {
     }
   }
 

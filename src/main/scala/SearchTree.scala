@@ -91,7 +91,7 @@ class SearchTree(ap: SearchTreeParams) extends MultiIOModule {
   val slast_valid = RegInit(false.B)
   val slast_last = RegInit(false.B)
 
-  val stall = !io.resultOut.ready
+  val stall = !io.resultOut.ready && slast_valid
 
 
   when (!stall) {
