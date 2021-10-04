@@ -179,6 +179,10 @@ class BramController(val p: MemCtrlParams) extends MultiIOModule {
 
             // Prepare the rsp queue for a Bram rsp next cycle
             regBramRspValid := true.B
+          }.otherwise {
+            regState := sIdle
+            io.requestedAgents.valid := false.B
+            qBramRspLast.enq.valid := false.B
           }
           when (regAgentRowInfo.length > 1.U) {
             regState := sReading
