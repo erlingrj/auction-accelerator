@@ -190,10 +190,13 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
 
   val dataMovementDone = RegInit(false.B)
+  val calcDone = RegInit(false.B)
   val running = RegInit(false.B)
   val regCycleCount = RegInit(0.U(32.W))
+
+  calcDone := controller.io.doWriteBack
   io.rfOut.cycleCount := regCycleCount
-  when(running && dataMovementDone) {
+  when(running && dataMovementDone && !calcDone) {
     regCycleCount := regCycleCount + 1.U
   }.elsewhen(!running && io.rfIn.start) {
     regCycleCount := 0.U
