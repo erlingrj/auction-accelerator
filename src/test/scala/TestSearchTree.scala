@@ -9,13 +9,13 @@ import fpgatidbits.dma._
 
 class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
 
-  val ap = new SearchTreeParams(
+  val ap = new SearchTaskParams(
     nPEs = 4, bitWidth = 8, maxProblemSize = 16
   )
 
 
 
-  def enqueueRound(c: SearchTree, benefits: Seq[Int], ids: Seq[Int], oldPrices: Seq[Int], tLast: Boolean): Unit = {
+  def enqueueRound(c: SearchTask, benefits: Seq[Int], ids: Seq[Int], oldPrices: Seq[Int], tLast: Boolean): Unit = {
     // wait for ready
     var ready = false
     while (ready == false) {
@@ -31,7 +31,7 @@ class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
 
   behavior of "SearchTaskPar"
   it should "Initialize correctly" in {
-    test(new SearchTree(ap)) { c =>
+    test(new SearchTask(ap)) { c =>
       c.io.resultOut.ready.poke(true.B)
       c.io.benefitIn.map(_.ready.expect(true.B))
       c.io.resultOut.valid.expect(false.B)
@@ -39,7 +39,7 @@ class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   it should "Find highest value" in {
-    test(new SearchTree(ap)) { c =>
+    test(new SearchTask(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
 
@@ -61,7 +61,7 @@ class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   it should "Find highest value with tie" in {
-    test(new SearchTree(ap)) { c =>
+    test(new SearchTask(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
@@ -83,7 +83,7 @@ class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
 
   it should "Find highest value over multiple rounds" in {
 
-    test(new SearchTree(ap)) { c =>
+    test(new SearchTask(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
@@ -108,7 +108,7 @@ class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
   it should "correct bid on all zeros input" in {
-    test(new SearchTree(ap)) { c =>
+    test(new SearchTask(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
 
@@ -130,7 +130,7 @@ class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
   }
 
   it should "Find highest value with zero benefit" in {
-    test(new SearchTree(ap)) { c =>
+    test(new SearchTask(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {
@@ -150,7 +150,7 @@ class TestSearchTree extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
   it should "solve two consecutive problems" in {
-    test(new SearchTree(ap)) { c =>
+    test(new SearchTask(ap)) { c =>
       c.io.benefitIn.map(_.initSource().setSourceClock(c.clock))
       c.io.resultOut.initSink().setSinkClock(c.clock)
       fork {

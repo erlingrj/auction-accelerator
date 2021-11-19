@@ -4,7 +4,7 @@ import chisel3.util._
 import fpgatidbits.dma.MemReqParams
 import fpgatidbits.synthutils.PrintableParam
 
-class AccountantParams(
+class AssignmentEngineParams(
   val bitWidth: Int,
   val nPEs: Int,
   val mrp: MemReqParams,
@@ -26,7 +26,7 @@ class AccountantParams(
   val priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs, 0, 1, agentWidth)
 }
 
-class WriteBackStream(ap: AccountantParams) extends Bundle {
+class WriteBackStream(ap: AssignmentEngineParams) extends Bundle {
   val start = Output(Bool())
   val wrData = Decoupled(UInt(64.W)) // TODO: One-size for prices AND agents? Or one streamwriter per?
   val finished = Input(Bool())
@@ -34,20 +34,20 @@ class WriteBackStream(ap: AccountantParams) extends Bundle {
   val byteCount = Output(UInt(32.W))
 }
 
-class Assignment(private val ap: AccountantParams) extends Bundle {
+class Assignment(private val ap: AssignmentEngineParams) extends Bundle {
   val agent = UInt(ap.agentWidth.W)
   val valid = Bool()
 }
 
-class AccountantIO(ap: AccountantParams) extends Bundle
+class AssignmentEngineIO(ap: AssignmentEngineParams) extends Bundle
 {
-  val searchTaskParams = new SearchTreeParams(
+  val searchTaskParams = new SearchTaskParams(
     bitWidth = ap.bitWidth,
     maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs
   )
 
-  val searchResultIn = Flipped(Decoupled(new SearchTreeResult(searchTaskParams)))
+  val searchResultIn = Flipped(Decoupled(new SearchTaskResult(searchTaskParams)))
 
   // MemoryRqeust and memoryRequested are the two interfaces to the queues to Memory Controller
   val unassignedAgents = Decoupled(new AgentInfo(ap.bitWidth))
@@ -94,8 +94,8 @@ class AccountantIO(ap: AccountantParams) extends Bundle
   }
 }
 
-class Accountant(ap: AccountantParams) extends Module {
-  val io = IO(new AccountantIO(ap))
+class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
+  val io = IO(new AssignmentEngineIO(ap))
   io.driveDefaults()
 
   // regAssignments holds the mapping object->agent. regAssignment[2] == 3 => obj 2 is owned by agent 3

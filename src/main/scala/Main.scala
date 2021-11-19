@@ -88,8 +88,8 @@ object CharacterizeMain {
 
   val mp = new MemReqParams(32, 64, 6, 1, true)
 
-  val instFxn_Accountant = {(ap: AccountantParams) => new Accountant(ap)}
-  val aP = new AccountantParams(
+  val instFxn_Accountant = {(ap: AssignmentEngineParams) => new AssignmentEngine(ap)}
+  val aP = new AssignmentEngineParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 64, mrp = mp
   )
   val instFxn_PE = {(ap: ProcessingElementParams) => new ProcessingElement(ap)}
@@ -100,12 +100,12 @@ object CharacterizeMain {
   val mcP = new MemCtrlParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 64, mrp = mp
   )
-  val instFxn_SearchTask= {(ap: SearchTreeParams) => new SearchTree(ap)}
-  val stP = new SearchTreeParams(
+  val instFxn_SearchTask= {(ap: SearchTaskParams) => new SearchTask(ap)}
+  val stP = new SearchTaskParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 64
   )
-  val instFxn_DataDistributor = {(ap: DataDistributorParams) => new DataDistributor(ap)}
-  val ddP = new DataDistributorParams(
+  val instFxn_DataDistributor = {(ap: DataMuxParams) => new DataMux(ap)}
+  val ddP = new DataMuxParams(
     bitWidth = 8, nPEs = 8, maxProblemSize = 64, memWidth = 64
   )
   val instFxn_Controller= {(ap: ApplicationControllerParams) => new ApplicationController(ap)}
@@ -122,8 +122,8 @@ object CharacterizeMain {
   )
 
   // Just adding auctionParams there so it adheres to the needing a PrintableParam in
-  val instFxn_SinglePortBRAM= { (ap:AccountantParams) => new SinglePortBRAM(8,128)}
-  val instFxn_SimpleDualPortBRAM= { (ap:AccountantParams) => new SimpleDualPortBRAM(1,512)}
+  val instFxn_SinglePortBRAM= { (ap:AssignmentEngineParams) => new SinglePortBRAM(8,128)}
+  val instFxn_SimpleDualPortBRAM= { (ap:AssignmentEngineParams) => new SimpleDualPortBRAM(1,512)}
 
   val instFxn_BramStore = {(p: BramStoreParams) => new BramStore(p)}
   val bsp = new BramStoreParams(

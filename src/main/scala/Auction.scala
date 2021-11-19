@@ -78,15 +78,15 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   )
   val controller = Module(new ApplicationController(cP))
 
-  val aP = new AccountantParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+  val aP = new AssignmentEngineParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, mrp = mp
   )
-  val accountant = Module(new Accountant(aP))
+  val accountant = Module(new AssignmentEngine(aP))
 
-  val ddP = new DataDistributorParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+  val ddP = new DataMuxParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, memWidth = mp.dataWidth
   )
-  val dataMux = Module(new DataDistributor(ddP))
+  val dataMux = Module(new DataMux(ddP))
 
   // create some queues
 
@@ -144,10 +144,10 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
     Module(new ProcessingElement(peP))
   }
 
-  val stP = new SearchTreeParams(
+  val stP = new SearchTaskParams(
     bitWidth = ap.bitWidth, nPEs = ap.nPEs, maxProblemSize = ap.maxProblemSize
   )
-  val search = Module(new SearchTree(stP))
+  val search = Module(new SearchTask(stP))
 
 
   memController.io.dataDistOut <> dataMux.io.bramWordIn

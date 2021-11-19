@@ -73,11 +73,32 @@ bool run_Auction(WrapperRegDriver * platform, std::vector<std::vector<int>> rewa
   for (int i = 0; i<n_cols; i++) {
     if(res[i] != object_assignments[i]) {
       if (res[i] != 0 && object_assignments[i] != -1) {
-        cout <<"ERROR: mismatch in object assignment result for object-" <<i <<"  SW=" <<object_assignments[i] <<" HW=" <<res[i] <<endl;
+        cout <<"WARNING: mismatch in object assignment result for object-" <<i <<"  SW=" <<object_assignments[i] <<" HW=" <<res[i] <<endl;
         valid = false;
+      } else if (res[i] == 0 && object_assignments[i] == -1) {
+        res[i] = -1;
       }
     }
   }
+
+
+  if (valid == false) {
+    // Check if the gain is the same and thus we have equally valid solution
+    std::vector<int> obj_ass_hw;
+    for (int i = 0; i<n_cols; i++) {
+        obj_ass_hw.push_back(res[i]);
+    }
+    int gainHW = calc_gain(reward_mat, obj_ass_hw);
+    int gainSW = calc_gain(reward_mat, object_assignments);
+
+    if (gainHW != gainSW) {
+       cout <<"ERROR: Also mismatch gain. gainHW=" <<gainHW <<" gainSW=" <<gainSW <<endl;
+
+    } else {
+        cout <<"INFO: Gain is equal" <<endl;
+        valid=true;
+    }
+    }
 
   cout <<"SW Assignments= ";
   for (auto el: object_assignments) {
@@ -85,6 +106,15 @@ bool run_Auction(WrapperRegDriver * platform, std::vector<std::vector<int>> rewa
   }
 
   cout <<endl;
+  if (!valid) {
+  cout <<"HW Assignments= ";
+  for (int i=0; i<n_cols; i++) {
+    cout <<res[i] <<" ";
+  }
+  cout <<endl;
+
+
+  }
   platform->deallocAccelBuffer(accelBuf);
   platform->deallocAccelBuffer(accelResBuf);
 
@@ -96,10 +126,32 @@ int main(int argc, char** argv)
     cout <<"Running Auction Accelerator" <<endl;
     int epsilon = 1;
 
-     string path = "auction-cpp/resources/test_problems8bit";
+     string path = "auction-cpp/resources/rewardsNew";
+      for (const auto & entry : experimental::filesystem::directory_iterator(path)) {
+        auto p = string(entry.path().string());
+       // if (p == "auction-cpp/resources/rewardsNew/new_rewards11749.csv") {
+        auto rew = parse_csv(p);
+        if (rew.size() == 0) {
+            continue;
+        }
+        cout <<p <<endl <<" rows=" <<rew.size() <<" cols=" <<rew[0].size() <<endl;
+        WrapperRegDriver * platform = initPlatform();
+        if (!run_Auction(platform, rew)) {
+          return 1;
+        }
+        //}
+    }
+
+    return 0;
+
+     path = "auction-cpp/resources/test_problems8bit";
       for (const auto & entry : experimental::filesystem::directory_iterator(path)) {
         auto p = string(entry.path().string());
         auto rew = parse_csv(p);
+        if (rew.size() == 0) {
+            continue;
+        }
+
         cout <<p <<endl <<" rows=" <<rew.size() <<" cols=" <<rew[0].size() <<endl;
         WrapperRegDriver * platform = initPlatform();
         if (!run_Auction(platform, rew)) {

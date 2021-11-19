@@ -38,7 +38,7 @@ class ProcessingElementIO(ap: ProcessingElementParams) extends Bundle {
   val agentIdxReqValid = Output(Bool())
 
   val rewardIn = Flipped(Decoupled(new PERewardIO(ap)))
-  val stP = new SearchTreeParams(
+  val stP = new SearchTaskParams(
     bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs
   )
   val PEResultOut = Decoupled(new PEResult(stP))

@@ -6,7 +6,7 @@ import fpgatidbits.dma.MemReqParams
 import fpgatidbits.ocm.FPGAQueue
 import fpgatidbits.synthutils.PrintableParam
 
-class DataDistributorParams(
+class DataMuxParams(
   val bitWidth: Int,
   val memWidth: Int,
   val nPEs: Int,
@@ -26,13 +26,13 @@ class DataDistributorParams(
   }
   def agentWidth = log2Ceil(maxProblemSize)
 }
-class MemData(val ap: DataDistributorParams) extends Bundle {
+class MemData(val ap: DataMuxParams) extends Bundle {
   val data = UInt(ap.memWidth.W)
   val mask = UInt((ap.memWidth/ap.bitWidth).W)
   val last = Bool()
 }
 
-class DataDistributorIO(p: DataDistributorParams) extends Bundle {
+class DataMuxIO(p: DataMuxParams) extends Bundle {
   val bramWordIn = Flipped(Decoupled(new BramMemWord(nPEs = p.nPEs, bitWidth = p.bitWidth, agentWidth = p.agentWidth)))
 
   val peP = new ProcessingElementParams(bitWidth = p.bitWidth,
@@ -43,8 +43,8 @@ class DataDistributorIO(p: DataDistributorParams) extends Bundle {
 
 }
 
-class DataDistributor(p: DataDistributorParams) extends Module {
-  val io = IO(new DataDistributorIO(p))
+class DataMux(p: DataMuxParams) extends Module {
+  val io = IO(new DataMuxIO(p))
 
   val qData = Module(new FPGAQueue(new BramMemWord(p.nPEs, p.bitWidth, p.agentWidth), 2))
   io.bramWordIn <> qData.io.enq
