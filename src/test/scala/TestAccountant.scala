@@ -9,50 +9,36 @@ import chiseltest.internal.VerilatorBackendAnnotation
 import fpgatidbits.dma._
 
 
-class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Matchers {
+class TestAccountant extends FlatSpec with ChiselScalatestTester with Matchers {
 
   val verilator = Seq(VerilatorBackendAnnotation)
 
   val mp = new MemReqParams(32, 64, 6, 1, true)
-  val ap = new AccountantParams(
+  val ap = new AssignmentEngineParams(
     nPEs = 4, bitWidth = 8, mrp=mp, maxProblemSize = 16
   )
 
-  def expectRead(c: AccountantExtPriceNonPipelined, addr: Int, res: Int) = {
-//    while(!c.io.priceStore.req.valid.peek().litToBoolean) {
-//      c.clock.step()
-//    }
-
+  def expectRead(c: AssignmentEngine, addr: Int, res: Int) = {
   fork {
-    c.io.priceStore.req.expectDequeue(chiselTypeOf(c.io.priceStore.req).bits.Lit(
-      _.wen -> false.B,
-      _.wdata -> 0.U,
-      _.addr -> addr.U
-    ))
+    c.io.bramStoreReadAddr.expect(addr.U)
   } .fork {
-    c.io.priceStore.rsp.enqueue(chiselTypeOf(c.io.priceStore.rsp).bits.Lit(
-      _.rdata -> res.U
-    ))
-
+    c.io.bramStoreReadData.poke(res.U)
   }.join()
-
   }
 
-  def initClocks(c: AccountantExtPriceNonPipelined): Unit = {
+  def initClocks(c: AssignmentEngine): Unit = {
     c.io.searchResultIn.initSource().setSourceClock(c.clock)
     c.io.unassignedAgents.initSink().setSinkClock(c.clock)
     c.io.requestedAgents.initSource().setSourceClock(c.clock)
     c.io.writeBackStream.wrData.initSink().setSinkClock(c.clock)
-    c.io.priceStore.req.initSink().setSinkClock(c.clock)
-    c.io.priceStore.rsp.initSource().setSourceClock(c.clock)
   }
 
-  def initRF(c: AccountantExtPriceNonPipelined): Unit = {
+  def initRF(c: AssignmentEngine): Unit = {
     c.io.rfInfo.nObjects.poke(8.U)
     c.io.rfInfo.nAgents.poke(8.U)
   }
 
-  def mockAssignment(c: AccountantExtPriceNonPipelined, agent: Int, obj: Int, bid: Int, oldPrice: Int): Unit = {
+  def mockAssignment(c: AssignmentEngine, agent: Int, obj: Int, bid: Int, oldPrice: Int): Unit = {
     fork {
       c.io.requestedAgents.enqueue(
         chiselTypeOf(c.io.requestedAgents).bits.Lit(
@@ -66,39 +52,35 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
           _.winner -> obj.U
         )
       )
-    }.fork {
-      c.io.priceStore.req.expectDequeue(chiselTypeOf(c.io.priceStore.req).bits.Lit(
-        _.wen -> false.B,
-        _.addr -> obj.U,
-        _.wdata -> 0.U
-      ))
-    }.fork {
-      c.io.priceStore.rsp.enqueue(chiselTypeOf(c.io.priceStore.rsp).bits.Lit(
-        _.rdata -> oldPrice.U
-      ))
-    }.join()
-
-    c.io.priceStore.req.expectDequeue(chiselTypeOf(c.io.priceStore.req).bits.Lit(
-      _.wen -> true.B,
-      _.addr -> obj.U,
-      _.wdata -> (bid + oldPrice).U
-    ))
+    }.fork.withRegion(Monitor) {
+      c.io.bramStoreReadAddr.expect(obj.U)
+      c.io.bramStoreReadData.poke(oldPrice.U)
+      c.clock.step()
+      if (bid > oldPrice) {
+        c.io.bramStoreWriteDataValid.expect(true.B)
+        c.io.bramStoreWriteData.expect(bid.U)
+        c.io.bramStoreWriteAddr.expect(obj.U)
+        c.clock.step()
+      }
+    }.joinAndStep(c.clock)
   }
 
-  behavior of "AccountantExtPriceNonPipelined"
+  behavior of "AccountantExtPricePipelined"
 
   it should "Initialize correctly" in {
-    test(new AccountantExtPriceNonPipelined(ap)) { c =>
+    test(new AssignmentEngine(ap)) { c =>
+      c.io.unassignedAgents.ready.poke(true.B)
+      c.io.requestedAgents.valid.poke(true.B)
+
       c.io.unassignedAgents.valid.expect(false.B)
       c.io.searchResultIn.ready.expect(true.B)
-      c.io.priceStore.req.valid.expect(false.B)
-      c.io.priceStore.rsp.ready.expect(false.B)
+      c.io.bramStoreWriteDataValid.expect(false.B)
       c.io.writeBackStream.start.expect(false.B)
     }
   }
 
   it should "update price correctly" in {
-    test(new AccountantExtPriceNonPipelined(ap)) { c =>
+    test(new AssignmentEngine(ap)) { c =>
       initClocks(c)
       c.io.unassignedAgents.ready.poke(true.B)
       mockAssignment(c, agent=5, obj=6, bid=10, oldPrice=0)
@@ -107,7 +89,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
   }
 
   it should "evict old agent and fire memory request" in {
-    test(new AccountantExtPriceNonPipelined(ap)) { c =>
+    test(new AssignmentEngine(ap)) { c =>
       initClocks(c)
       c.io.rfInfo.nObjects.poke(8.U)
       fork {
@@ -117,7 +99,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
         c.io.unassignedAgents.expectDequeue(
           chiselTypeOf(c.io.unassignedAgents).bits.Lit(
             _.agent -> 5.U,
-            _.nObjects -> 8.U
+            _.nObjects -> 0.U
           )
         )
       }.join()
@@ -157,7 +139,7 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
 //  }
 
   it should "not schedule new unassigned" in {
-    test(new AccountantExtPriceNonPipelined(ap)) { c =>
+    test(new AssignmentEngine(ap)) { c =>
       initClocks(c)
       initRF(c)
       c.io.unassignedAgents.ready.poke(true.B)
@@ -170,4 +152,39 @@ class TestAccountantExtPrice extends FlatSpec with ChiselScalatestTester with Ma
     }
   }
 
+  it should "catch misspeculation 1" in {
+    test(new AssignmentEngine(ap)) { c =>
+      initClocks(c)
+      c.io.rfInfo.nObjects.poke(8.U)
+      fork {
+        mockAssignment(c, agent = 5, obj = 6, bid = 12, oldPrice = 0)
+        mockAssignment(c, agent = 6, obj = 6, bid = 10, oldPrice = 12)
+      }.fork {
+        c.io.unassignedAgents.expectDequeue(
+          chiselTypeOf(c.io.unassignedAgents).bits.Lit(
+            _.agent -> 6.U,
+            _.nObjects -> 0.U
+          )
+        )
+      }.join()
+    }
+  }
+
+  it should "catch misspeculation 2" in {
+    test(new AssignmentEngine(ap)) { c =>
+      initClocks(c)
+      c.io.rfInfo.nObjects.poke(8.U)
+      fork {
+        mockAssignment(c, agent = 5, obj = 6, bid = 12, oldPrice = 0)
+        mockAssignment(c, agent = 6, obj = 6, bid = 12, oldPrice = 12)
+      }.fork {
+        c.io.unassignedAgents.expectDequeue(
+          chiselTypeOf(c.io.unassignedAgents).bits.Lit(
+            _.agent -> 6.U,
+            _.nObjects -> 0.U
+          )
+        )
+      }.join()
+    }
+  }
 }

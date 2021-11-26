@@ -19,7 +19,7 @@ class BramEl(val mp: MemCtrlParams) extends Bundle {
 
 class AgentRowInfo(val p: MemCtrlParams) extends Bundle {
   val rowAddr = UInt(log2Ceil(p.bramDataWidth).W)
-  val length = UInt(p.agentWidth.W)
+  val length = UInt(log2Ceil(1 + p.maxProblemSize/p.nPEs).W)
 }
 object AgentRowInfo {
   def apply(p: MemCtrlParams, rowAddr: UInt, length: UInt): AgentRowInfo = {
@@ -30,7 +30,7 @@ object AgentRowInfo {
   }
 }
 
-class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
+class Dram2BramIO(val p: MemCtrlParams) extends Bundle {
   // Interface to DRAM
   val dramReq = Decoupled(new GenericMemoryRequest(p.mrp))
   val dramRsp = Flipped(Decoupled(new GenericMemoryResponse(p.mrp)))
@@ -44,6 +44,8 @@ class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
   val baseAddr = Input(UInt(64.W))
   val nRows = Input(UInt(log2Ceil(p.maxProblemSize).W))
   val nCols = Input(UInt(log2Ceil(p.maxProblemSize).W))
+
+  val nElements = Input(UInt((2*p.agentWidth).W))
 
   // Interface to module storing the agentRowAddresses
   // We need nPEs because worst case each memory fetch leads to nPE rows.
@@ -63,9 +65,177 @@ class DRAM2BRAMIO(val p: MemCtrlParams) extends Bundle {
   }
 }
 
+
+class Dram2Bram2(val p: MemCtrlParams) extends Module {
+
+  val io = IO(new Dram2BramIO(p))
+  io.driveDefaults()
+  require(p.bitWidth >= 8)
+  //require(p.nPEs >= 8)
+  // read request generator
+  val rg = Module(new ReadReqGen(p.mrp, chanID = 0, maxBeats = 8))
+  io.dramReq <> rg.io.reqs
+  rg.io.ctrl.throttle := DontCare
+  rg.io.ctrl.baseAddr := DontCare
+  rg.io.ctrl.byteCount := DontCare
+  rg.io.ctrl.start := false.B
+  // FIFO for reciving DRAM memory data
+  val rspQ = Module(new FPGAQueue(new GenericMemoryResponse(p.mrp), 2)).io
+  io.dramRsp <> rspQ.enq
+  rspQ.deq.ready := false.B
+
+  val sIdle :: sCalcByte :: sParse :: sSendOff :: Nil = Enum(4)
+  val regState = RegInit(sIdle)
+
+  val regBramLine = RegInit(0.U.asTypeOf(new BramLine(p)))
+  val regBramLineIdx = RegInit(0.U(log2Ceil(p.nPEs).W))
+
+
+  val regDramRowCnt = RegInit(0.U(p.agentWidth.W))
+  val regDramColCnt = RegInit(0.U(p.agentWidth.W))
+
+  val regBramAddr = RegInit(0.U(p.bramAddrBits.W))
+  val regAgentRowInfo = RegInit(0.U.asTypeOf(new AgentRowInfo(p)))
+  val regAgentHasValid = RegInit(false.B)
+  val regRowDone = RegInit(false.B)
+  val regNElements = RegInit(0.U(32.W))
+
+  val regNRows = RegInit(0.U((p.agentWidth.W)))
+  val regNCols = RegInit(0.U((p.agentWidth.W)))
+
+  switch(regState) {
+    is(sIdle) {
+      rg.io.ctrl.start := false.B
+      io.finished := false.B
+      when(io.start) {
+        rg.io.ctrl.throttle := false.B
+        rg.io.ctrl.baseAddr := io.baseAddr
+
+        regNElements := io.nElements
+
+        regState := sCalcByte
+
+        regBramLineIdx := 0.U
+        regDramRowCnt := 0.U
+        regDramColCnt := 0.U
+
+        regRowDone := false.B
+        regBramAddr := 0.U
+
+        regAgentRowInfo.rowAddr := 0.U
+        regAgentRowInfo.length := 0.U
+
+        regAgentHasValid := false.B
+      }
+    }
+    is (sCalcByte) {
+        val byteCount = (regNElements << 3.U).asUInt
+        rg.io.ctrl.byteCount := byteCount
+        rg.io.ctrl.start := true.B
+
+        regState := sParse
+
+        regNCols := io.nCols
+        regNRows := io.nRows
+        regBramLine := 0.U.asTypeOf(new BramLine(p))
+      }
+
+    is(sParse) {
+      rspQ.deq.ready := true.B
+      when(rspQ.deq.fire()) {
+        val value = rspQ.deq.bits.readData
+        val bramLineFull = WireInit(false.B)
+
+        when(value > 0.U) {
+          regBramLine.els(regBramLineIdx).col := regDramColCnt
+          regBramLine.els(regBramLineIdx).value := value
+          regAgentHasValid := true.B
+
+          bramLineFull := regBramLineIdx === (p.nPEs - 1).U
+          regBramLineIdx := regBramLineIdx + 1.U
+        }
+
+        regDramColCnt := regDramColCnt + 1.U
+
+        val dramRowDone = regDramColCnt === (regNCols - 1.U)
+        // If either the bramLine is full or the dramRow
+        when(bramLineFull) {
+          regState := sSendOff
+          regAgentRowInfo.length := regAgentRowInfo.length + 1.U
+          regRowDone := false.B
+        }
+
+        when(dramRowDone) {
+          when(regAgentHasValid || value > 0.U) {
+            regState := sSendOff
+            regRowDone := true.B
+            regAgentRowInfo.length := regAgentRowInfo.length + 1.U
+          }.otherwise {
+            regDramRowCnt := regDramRowCnt + 1.U
+            assert(regBramLineIdx === 0.U)
+
+            when(regDramRowCnt === regNRows - 1.U) {
+              io.finished := true.B
+              regState := sIdle
+            }
+          }
+          regDramColCnt := 0.U
+        }
+
+      }
+    }
+    is(sSendOff) {
+
+      // Send the data to BRAM
+      io.bramCmd.req.writeEn := true.B
+      io.bramCmd.req.writeData := regBramLine.asUInt()
+      io.bramCmd.req.addr := regBramAddr
+
+      regBramAddr := regBramAddr + 1.U
+      regBramLine := 0.U.asTypeOf(new BramLine(p))
+      regBramLineIdx := 0.U
+
+      regState := sParse
+      regRowDone := false.B
+
+      when(regRowDone) {
+        assert(regAgentHasValid === true.B)
+        io.agentRowAddress.req.valid := true.B
+        io.agentRowAddress.req.bits.addr := regDramRowCnt
+        io.agentRowAddress.req.bits.wdata := regAgentRowInfo
+        io.agentRowAddress.req.bits.wen := true.B
+
+        regAgentHasValid := false.B
+        regAgentRowInfo.length := 0.U
+        regAgentRowInfo.rowAddr := regBramAddr + 1.U
+        regDramRowCnt := regDramRowCnt + 1.U
+        when(regDramRowCnt === regNRows - 1.U) {
+          regState := sIdle
+          io.finished := true.B
+        }
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // Horrible class. Dont even bother looking
-class DRAM2BRAM(val p: MemCtrlParams) extends Module {
-  val io = IO(new DRAM2BRAMIO(p))
+class Dram2Bram(val p: MemCtrlParams) extends Module {
+  val io = IO(new Dram2BramIO(p))
   io.driveDefaults()
   require(p.bitWidth >= 8)
   //require(p.nPEs >= 8)
@@ -77,7 +247,7 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
   rg.io.ctrl.byteCount := DontCare
   rg.io.ctrl.start := false.B
   // FIFO for reciving DRAM memory data
-  val rspQ = Module(new Queue(new GenericMemoryResponse(p.mrp), 64/p.bitWidth)).io
+  val rspQ = Module(new FPGAQueue(new GenericMemoryResponse(p.mrp), 64/p.bitWidth)).io
   io.dramRsp <> rspQ.enq
   rspQ.deq.ready := false.B
 
@@ -308,10 +478,8 @@ class DRAM2BRAM(val p: MemCtrlParams) extends Module {
         for (i <- 0 until bramLine.els.length)  {
           when (i.U < regElCnt) {
             bramLine.els(i) := regBramLine.els(i)
-          }.otherwise {
-            if (i < 64/p.bitWidth) {
-              bramLine.els(i) := valids(i.U - regElCnt)
-            }
+          }.elsewhen(i.U - regElCnt < (64/p.bitWidth).U) {
+            bramLine.els(i) := valids(i.U - regElCnt)
           }
         }
 

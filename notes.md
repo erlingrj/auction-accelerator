@@ -2,22 +2,62 @@
 
 ## TODO
 - SearchTask exploration: We wanna be able to do all the ProcessingElements in parallell and
-quickly do the comparisons
+  quickly do the comparisons
 - DataDistributor: We should always request full memory width and then handle the distribution as it comes
 - Interfaces: Consider adding tlast signal to avoid having multiple similar state machines
 - PEs. Either all must process in parallell or we only need 1. That is probably to very different implementations.
-The first is a parallell processing parallell Search the second is sequential and tiny everything
+  The first is a parallell processing parallell Search the second is sequential and tiny everything
 - We must write the results back to memory. Not that hard, just define a function that does it?
 
+
+
+## Dependency prediction
+We need:
+- cntUnresolved
+- cntRequested
+- cntUnassigned
 
 
 
 ## Log
 
+## August 10
+- New info from Edmund. Might have to implement Spec.
+- DataDist nEntries = 1 makes things dissappear. Has to be changed at SS Auction also
+
+## July 30
+- SpecAuction3 now works and synthesizes and runs yiha
+- Did even more simplification, now only counting the CC to run the actual algo. Not reading the data from DRAM.
+- Could consider also only counting until we are done and not count the reading out of data also. Should consult with Milica
+- I have rebased up SparseAuction also to the same level, now we have a couple of failed tests from TestAuction. Not sure whats the issue here. ITs in SparseAuction (not 2)
+- Big question is the SoA Auction. It must be rebased ontop of Sparse or what? Actually looking at the git trees I am probably having to do the whole rebase thing again and then git working. This shit takes so much time.
+- I should have finished the essence of the paper before coming back
+
+## July 26
+- I need to check and verify my assumption about sparse problems with Edmund
+- Also I need to stop improving timing.
+- On dev-side I need to implement the dependency prediction scheme.
+
+## LAST DAY BEFORE SUMMER
+- I definetly started optimzing for timing too late. Now I have spent several days trying to improve the critical path.
+- I think I am dpwn to around 6ns which should give 167Mhz.
+- But I need more improvements:
+1. Make regAssignments into also a BRAM. No reason to use registers for that
+2. Fix the Controller. It gets on the CP when it is muxing those queues and we get the whole "back-down counter". That thing should be fixed. A stupid hack.
+3. Consider making GreyCounters instead of using normal counters with adders. Could be an interesting project for Chisel also
+4. COnsider making a pipelined Adder generator for Chisel
+
+
+
+## Last time
+- The changes I made to the TesterWrappeMemory is fucking it up somehow.
+- in the 4x4 PEs example we dont get the expected order of mem resps back. What could be the issue??
+-
+
 ## April 23
 - Passes all Verilator tests approx 10x improvement over SW (thats not that impressive though, but we are dealing with simple problems)
 - Does not meet timing: There are problems in DRAM2BRAM worst path is:
-Queue.deq -> regElCnt (update) -> regBramLine
+  Queue.deq -> regElCnt (update) -> regBramLine
 
 We need a quite substantial rewrite of DRAM2BRAM we should introduce a pipeline there:
 Stage 1:
@@ -54,7 +94,7 @@ stage 2:
 - Gotta test:
 1. DRAM rows with no valid entry
 2. Problem row spread over multiple DRAM rows filling multiple BRAM rows
-3. 
+3.
 - Then: Make the RegStore with one writer and multiple readers. Consider making it based on LUTRAMs also
 - Then we need to move both AgentRowAddresses and Prices into RegStore
 - Then adapt Accountant and PEs to use RegStore for Prices
@@ -70,9 +110,9 @@ stage 2:
 1. We have to count the received dram-words so that we know when its "finished"
 2. We must possibly do a last round if we overflow on the last dram-word
 
-- Then what remains is simply: 
+- Then what remains is simply:
 1. Adapt controller to FIRST start DRAM2BRAM and schedule all the BRAM reads
-2. Make a BRAM controller that just fetches the data straight from BRAM 
+2. Make a BRAM controller that just fetches the data straight from BRAM
 3. Make the AgentRowStartAddress Register storage
 4. Make the Prices Register storage
 5. Adapt Accountant to write to the Prices Register Storage
@@ -82,7 +122,7 @@ stage 2:
 - A really small variant of the accelerator with 8PEs runs on the ZedBoard with 100MHz (I think) clock.
 - I have spent HOURS trying to execute a simple shell command in Scala using the environmental variables
 - Should checkout Rosetta-code for fast deployment on the PYNQ. Also I need to synthesis the Vivado project making
-and the synthesis of the project. Use good ol TCL?
+  and the synthesis of the project. Use good ol TCL?
 - OPS: The accelerator only works a single time, so probably it doesnt reset like it should
 
 ## March 11: Build
@@ -92,11 +132,11 @@ and the synthesis of the project. Use good ol TCL?
 ## March 8: Memory integratio work better
 - Unaligned memory access now works.
 - Need to test more with multiple rounds.
-- Need to test evictions 
+- Need to test evictions
 - Should we implement Auction in Scala?
 - Should we add a valid bit to assignments and prices?
 - We should get a full C++ version running with Verilator. We need a reg-file-driver++, but FPGA-tidbits should help
-with that. Then should we try getting it onto the PYNQ? First ZedBoard with C++
+  with that. Then should we try getting it onto the PYNQ? First ZedBoard with C++
 
 
 
@@ -104,7 +144,7 @@ with that. Then should we try getting it onto the PYNQ? First ZedBoard with C++
 - Basic 4x4 super simple problem works.
 - Working with unaligned example (5x4) problem where we get skewed memory stuff
 - New memory assumption:
-EACH ROW STARTS IS ALIGNED TO 64 BIT MEM ROWS
+  EACH ROW STARTS IS ALIGNED TO 64 BIT MEM ROWS
 - Its implemented in MemoryController.
 - NEXT TIME: fix the setting up of memory in TestAucition. Consider implementing SW auction in Scala
 
@@ -114,7 +154,7 @@ EACH ROW STARTS IS ALIGNED TO 64 BIT MEM ROWS
 
 ## March 3:
 - Finished testing all submodules. Now ready for the auction algorithm itself.
-- Currently fails at MemoryController due to a misaligned memory access. Figure that shit out. 
+- Currently fails at MemoryController due to a misaligned memory access. Figure that shit out.
 - The challenge is, as always, in the memory interface
 - We need to get this stuff to the BRAM
 
@@ -132,12 +172,12 @@ EACH ROW STARTS IS ALIGNED TO 64 BIT MEM ROWS
 
 ### Feb 9: More dataflow
 - meeting with milica
--> Do software simulations to see how a "fuzzy" approach would do
--> If not we NEED to stall between data MUX and the PEs to get the correct prices
+  -> Do software simulations to see how a "fuzzy" approach would do
+  -> If not we NEED to stall between data MUX and the PEs to get the correct prices
 
 ### Feb 3: Dataflow
-- Proposal here: 
-1. When start goes high we initialzie the qUnassigned with all the agents. 
+- Proposal here:
+1. When start goes high we initialzie the qUnassigned with all the agents.
 2. Memory controller has the dequeue side of that queue
 3. Memory controller dequeues and the enqueues them into the qRequested
 4. AuctionController has the dequeue of qRequested and also the enqueue of qUnassigned
@@ -155,24 +195,24 @@ EACH ROW STARTS IS ALIGNED TO 64 BIT MEM ROWS
 - Fucking wierd problem with ChiselTester. The timing is all wierd getting signals that are high for only half a CC
 - Next time: check out lates version of chisel-tester (publishLocal??) and see if that fixes it
 - Then Its on to the AuctionController and then we can try to get this thing UP AND RUNNING GAWD DAMN IT
-- Also think about moving data to/from BRAM. 
+- Also think about moving data to/from BRAM.
 
 
 ### January 22 SearchTask done
 - Its done but it is un-pipelined. But that can easily be fixed later. as long as we dont make it dependent on that oter places
 - Fixed PE also but next time update the tests.
 - Currently DataDistributor always requests memWidth from the memory. It probably should be it shouldnt be necessary to
-need the whole
+  need the whole
 
 ### January 18 SearchTask
-- We need to consider cases when nPEs are less then problemsize 
-maybe currently forget about optimizing it? 
+- We need to consider cases when nPEs are less then problemsize
+  maybe currently forget about optimizing it?
 
 1. Build a tree of comps + lastWinner
-2. Add another stage where winner compares with lastWInner 
-and maybe updates it
+2. Add another stage where winner compares with lastWInner
+   and maybe updates it
 3. Add a tlast signal to the interface such that we now when to pipe out the results
-instead of just updating the lastWinner variable.
+   instead of just updating the lastWinner variable.
 
 ### January 12
 - Move everything to a own repo

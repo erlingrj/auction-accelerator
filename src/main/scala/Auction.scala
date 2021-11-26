@@ -4,10 +4,9 @@ import chisel3._
 import chisel3.util._
 import fpgatidbits.PlatformWrapper._
 import fpgatidbits.dma._
-import fpgatidbits.ocm.SinglePortBRAM
+import fpgatidbits.ocm.{FPGAQueue, SimpleDualPortBRAM, SinglePortBRAM}
 import fpgatidbits.streams._
 import fpgatidbits.synthutils.PrintableParam
-
 
 
 class AuctionParams(
@@ -34,7 +33,7 @@ class AuctionParams(
   def bramAddrWidth: Int = log2Ceil(maxProblemSize*maxProblemSize / (nPEs)) //Enough to store max problemsize
 
   def agentRowStoreParams: RegStoreParams = new RegStoreParams(1,1,0, agentWidth)
-  def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs,0 ,1,agentWidth)
+  def priceRegStoreParams: RegStoreParams = new RegStoreParams(nPEs + 1,0 ,1,agentWidth)
 }
 
 class AppControlSignals extends Bundle {
@@ -49,6 +48,7 @@ class AppInfoSignals extends Bundle {
   val nObjects = Input(UInt(32.W))
   val baseAddrRes = Input(UInt(64.W))
 }
+
 
 // read and sum a contiguous stream of 32-bit uints from main memory
 class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccelerator(p) {
@@ -65,38 +65,60 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
   val rdP = new StreamReaderParams(
     streamWidth = ap.memWidth, fifoElems = 8, mem = p.toMemReqParams(),
-    maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = true
+    maxBeats = 1, chanID = 0, disableThrottle = true, useChiselQueue = false
   )
   // Create all the submodules
   val mcP = new MemCtrlParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, mrp = mp
   )
-  val memController = Module(new AuctionDRAMController(mcP))
+  val memController = Module(new BramController(mcP))
 
-  val cP = new ControllerParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+  val cP = new ApplicationControllerParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, mrp = mp
   )
-  val controller = Module(new Controller(cP))
+  val controller = Module(new ApplicationController(cP))
 
-  val aP = new AccountantParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+  val aP = new AssignmentEngineParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, mrp = mp
   )
-  val accountant = Module(new AccountantNonPipelined(aP))
+  val accountant = Module(new AssignmentEngine(aP))
 
-  val ddP = new DataDistributorParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
+  val ddP = new DataMuxParams( bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize,
     nPEs = ap.nPEs, memWidth = mp.dataWidth
   )
-  val dataMux = Module(new DataDistributorParUnO(ddP))
+  val dataMux = Module(new DataMux(ddP))
 
   // create some queues
-  val qUnassignedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
-  val qRequestedAgents = Module(new Queue(gen=new AgentInfo(ap.bitWidth), entries=16))
 
 
-  // Memories
-  //val bram = Module(new SinglePortBRAM())
+  // On-chip-memory
+  val bram = Module(new SimpleDualPortBRAM(addrBits=ap.bramAddrWidth, dataBits=ap.bramDataWidth))
+  val agentRowStore = Module(new RegStore(gen=new AgentRowInfo(p=mcP), p=ap.agentRowStoreParams))
+
+  val bsP = new BramStoreParams(bitWidth = ap.bitWidth, maxProblemSize = ap.maxProblemSize, nPEs = ap.nPEs)
+  val priceStore = Module(new BramStore(bsP))
 
 
+  priceStore.reset := controller.io.reinit
+  agentRowStore.reset := controller.io.reinit
+
+
+  // dram2bram reader
+  val dram2bram = Module(new Dram2Bram2(p = mcP))
+  dram2bram.io.dramReq <> io.memPort(0).memRdReq
+  dram2bram.io.dramRsp <> io.memPort(0).memRdRsp
+  dram2bram.io.bramCmd <> bram.io.write
+  dram2bram.io.start := controller.io.dram2bram_start
+  dram2bram.io.baseAddr := controller.io.dram2bram_baseAddr
+  dram2bram.io.nRows := controller.io.dram2bram_nRows
+  dram2bram.io.nCols := controller.io.dram2bram_nCols
+  dram2bram.io.agentRowAddress <> agentRowStore.io.wPorts(0)
+  controller.io.dram2bram_finished := dram2bram.io.finished
+
+  dram2bram.io.nElements := controller.io.nElements
+
+
+  // Dram writer of the result
   val wrP = new StreamWriterParams(
     streamWidth = p.memDataBits,
     mem = p.toMemReqParams(),
@@ -110,8 +132,8 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
 
   memWriter.io.in <> accountant.io.writeBackStream.wrData
   memWriter.io.start := accountant.io.writeBackStream.start
-  memWriter.io.baseAddr := io.rfIn.baseAddrRes
-  memWriter.io.byteCount := io.rfIn.nObjects*(8*2).U //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
+  memWriter.io.baseAddr := accountant.io.writeBackStream.baseAddr
+  memWriter.io.byteCount := accountant.io.writeBackStream.byteCount //TODO : this should be a parameter. Its nObjects * bytes * 2 (we use 32bits = 4)
   accountant.io.writeBackStream.finished := memWriter.io.finished
 
   val peP = new ProcessingElementParams(
@@ -119,38 +141,45 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   )
 
   val pes = for (i <- 0 until ap.nPEs) yield {
-    Module(new ProcessingElementPar(peP,i))
+    Module(new ProcessingElement(peP))
   }
 
   val stP = new SearchTaskParams(
     bitWidth = ap.bitWidth, nPEs = ap.nPEs, maxProblemSize = ap.maxProblemSize
   )
-  val search = Module(new SearchTaskPar(stP))
+  val search = Module(new SearchTask(stP))
 
-  memController.ioMem.req <> io.memPort(0).memRdReq
-  memController.ioMem.rsp <> io.memPort(0).memRdRsp
 
-  memController.ioCtrl.regFile <> io.rfIn
-  memController.ioCtrl.memData <> dataMux.io.mem
+  memController.io.dataDistOut <> dataMux.io.bramWordIn
+  memController.io.agentRowAddrReq <> agentRowStore.io.rPorts(0)
+  memController.io.bramReq <> bram.io.read
 
   for (i <- 0 until ap.nPEs) {
     dataMux.io.peOut(i) <> pes(i).io.rewardIn
     pes(i).io.PEResultOut <> search.io.benefitIn(i)
-    pes(i).io.controlIn <> accountant.io.PEControlOut(i)
+    pes(i).io.price <> priceStore.io.prices(i)
+    priceStore.io.idxs.bits(i) := pes(i).io.agentIdx
   }
+  priceStore.io.idxs.valid := pes.map(_.io.agentIdxReqValid).reduce(_ || _)
+
 
   search.io.resultOut <> accountant.io.searchResultIn
+  accountant.io.bramStoreReadData := priceStore.io.accReadData
+  priceStore.io.accReadAddr := accountant.io.bramStoreReadAddr
+
+  priceStore.io.accWriteDataValid := accountant.io.bramStoreWriteDataValid
+  priceStore.io.accWriteData := accountant.io.bramStoreWriteData
+  priceStore.io.accWriteAddr := accountant.io.bramStoreWriteAddr
+  priceStore.io.dumpOut <> accountant.io.bramStoreDump
+  priceStore.io.dump := accountant.io.bramStoreDumpStart
+
 
   // MemController <> qUnassigned <> Controller <> Auction
-  memController.ioCtrl.unassignedAgents <> qUnassignedAgents.io.deq
-  qUnassignedAgents.io.enq <> controller.io.unassignedAgentsOut
+  memController.io.unassignedAgents <> controller.io.unassignedAgentsOut
   controller.io.unassignedAgentsIn <> accountant.io.unassignedAgents
 
-  memController.ioCtrl.requestedAgents <> qRequestedAgents.io.enq
-  qRequestedAgents.io.deq <> controller.io.requestedAgentsIn
+  memController.io.requestedAgents <> controller.io.requestedAgentsIn
   controller.io.requestedAgentsOut <> accountant.io.requestedAgents
-
-
 
   controller.io.writeBackDone := accountant.io.writeBackDone
   accountant.io.doWriteBack := controller.io.doWriteBack
@@ -159,10 +188,15 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   controller.io.rfInfo := io.rfIn
   io.rfOut := controller.io.rfCtrl
 
+
+  val dataMovementDone = RegInit(false.B)
+  val calcDone = RegInit(false.B)
   val running = RegInit(false.B)
   val regCycleCount = RegInit(0.U(32.W))
+
+  calcDone := controller.io.doWriteBack
   io.rfOut.cycleCount := regCycleCount
-  when(running) {
+  when(running && dataMovementDone && !calcDone) {
     regCycleCount := regCycleCount + 1.U
   }.elsewhen(!running && io.rfIn.start) {
     regCycleCount := 0.U
@@ -172,6 +206,12 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
     running := io.rfIn.start
   } otherwise {
     running := !controller.io.rfCtrl.finished
+  }
+
+  when (!dataMovementDone) {
+    dataMovementDone := dram2bram.io.finished
+  } otherwise {
+    dataMovementDone := !controller.io.rfCtrl.finished
   }
 }
 
