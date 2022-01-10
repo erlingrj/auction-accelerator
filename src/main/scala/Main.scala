@@ -110,7 +110,7 @@ object CharacterizeMain {
   )
   val instFxn_Controller= {(ap: ApplicationControllerParams) => new ApplicationController(ap)}
   val cP = new ApplicationControllerParams(
-    bitWidth = 8, nPEs = 8, maxProblemSize = 64, mrp = mp
+    bitWidth = 8, nPEs = 8, maxProblemSize = 4000, mrp = mp
   )
 
   val instFxn_DRAM2BRAM= {(ap: MemCtrlParams) => new Dram2Bram(ap)}
@@ -127,7 +127,7 @@ object CharacterizeMain {
 
   val instFxn_BramStore = {(p: BramStoreParams) => new BramStore(p)}
   val bsp = new BramStoreParams(
-    bitWidth = 8, nPEs = 8, maxProblemSize = 64
+    bitWidth = 8, nPEs = 8, maxProblemSize =4000
   )
 
   val instFxn_RegStore = {(p: RegStoreParams) => new RegStore(gen=0.U(8.W), p)}

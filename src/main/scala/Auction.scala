@@ -157,19 +157,21 @@ class Auction(p: PlatformWrapperParams, ap: AuctionParams) extends GenericAccele
   for (i <- 0 until ap.nPEs) {
     dataMux.io.peOut(i) <> pes(i).io.rewardIn
     pes(i).io.PEResultOut <> search.io.benefitIn(i)
-    pes(i).io.price <> priceStore.io.prices(i)
-    priceStore.io.idxs.bits(i) := pes(i).io.agentIdx
+    pes(i).io.price <> priceStore.io.peReadRsp(i)
+    priceStore.io.peReadReq(i) := pes(i).io.agentIdx
   }
-  priceStore.io.idxs.valid := pes.map(_.io.agentIdxReqValid).reduce(_ || _)
+
 
 
   search.io.resultOut <> accountant.io.searchResultIn
-  accountant.io.bramStoreReadData := priceStore.io.accReadData
-  priceStore.io.accReadAddr := accountant.io.bramStoreReadAddr
+  accountant.io.bramStoreReadData := priceStore.io.assReadRsp
+  priceStore.io.assReadReq := accountant.io.bramStoreReadAddr
 
-  priceStore.io.accWriteDataValid := accountant.io.bramStoreWriteDataValid
-  priceStore.io.accWriteData := accountant.io.bramStoreWriteData
-  priceStore.io.accWriteAddr := accountant.io.bramStoreWriteAddr
+  priceStore.io.assWriteReq.valid := accountant.io.bramStoreWriteDataValid
+  priceStore.io.assWriteReq.bits.addr := accountant.io.bramStoreWriteAddr
+  priceStore.io.assWriteReq.bits.data := accountant.io.bramStoreWriteData
+
+
   priceStore.io.dumpOut <> accountant.io.bramStoreDump
   priceStore.io.dump := accountant.io.bramStoreDumpStart
 

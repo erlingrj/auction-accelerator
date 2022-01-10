@@ -8,6 +8,7 @@ import chiseltest.internal.VerilatorBackendAnnotation
 import fpgatidbits.dma._
 import chiseltest.experimental.TestOptionBuilder._
 import chiseltest.legacy.backends.verilator.{VerilatorCFlags, VerilatorFlags}
+import chisel3.experimental.BundleLiterals._
 
 class TestBramStore extends FlatSpec with ChiselScalatestTester with Matchers {
 
@@ -23,54 +24,53 @@ class TestBramStore extends FlatSpec with ChiselScalatestTester with Matchers {
     }
   }
 
-  def expectReadPrice(c: BramStore, addr: Int, price: Int): Unit = {
-    c.io.accReadAddr.poke(addr.U)
-    c.io.accReadData.expect(price.U)
+  def expectReadPrice(c: BramStore, addr: Int, price: Int, idx: Int): Unit = {
+    if (idx == ap.nPEs) {
+      c.io.assReadReq.poke(addr.U)
+      c.clock.step(1)
+      c.io.assReadRsp.expect(price.U)
+    } else {
+      c.io.peReadReq(idx).poke(addr.U)
+      c.clock.step()
+      c.io.peReadRsp(idx).expect(price.U)
+    }
   }
-
 
   def writePrice(c: BramStore, addr: Int, price: Int): Unit = {
-    c.io.accWriteData.poke(price.U)
-    c.io.accWriteAddr.poke(addr.U)
-    c.io.accWriteDataValid.poke(true.B)
-    c.clock.step()
-    c.io.accWriteDataValid.poke(false.B)
+    c.io.assWriteReq.enqueue(
+      chiselTypeOf(c.io.assWriteReq).bits.Lit(
+        _.addr -> addr.U,
+        _.data -> price.U
+      )
+    )
   }
 
-  def expectPrices(c: BramStore, p: Seq[Int]): Unit = {
-
-    p.zipWithIndex.foreach{case (v,i) => c.io.prices(i).expect(v.U)}
+  def expectPrices(c: BramStore, p: Seq[Int], a: Seq[Int]): Unit = {
+    for (i <- p.indices) {
+      expectReadPrice(c, a(i), p(i), i)
+    }
   }
 
   def initClocks(c: BramStore): Unit = {
-    c.io.idxs.initSource().setSourceClock(c.clock)
-  }
-
-  def enqIdxs(c: BramStore, idxs: Seq[Int]): Unit = {
-    c.io.idxs.valid.poke(true.B)
-    c.io.idxs.bits zip idxs map {
-      case (l,r) => l.poke(r.U)
-    }
-    c.clock.step()
-    c.io.idxs.valid.poke(false.B)
+    c.io.assWriteReq.initSource().setSourceClock(c.clock)
   }
 
   behavior of "BramStore"
   it should "Initialize correctly" in {
     test(new BramStore(ap)).withAnnotations(verilator) { c =>
       initClocks(c)
-      c.io.accReadData.expect(0.U)
-      expectPrices(c, Seq(0,0,0,0))
+      c.io.assReadRsp.expect(0.U)
+      expectPrices(c, Seq(0,0,0,0), Seq(0,0,0,0))
     }
   }
 
   it should "Write and read prices" in {
     test(new BramStore(ap)).withAnnotations(Seq(VerilatorBackendAnnotation)) { c =>
       initClocks(c)
-      expectReadPrice(c, 0, 0)
+      expectReadPrice(c, 0, 0, 0)
       writePrice(c, 8, 128)
-      c.clock.step()
-      expectReadPrice(c, 8, 128)
+      c.clock.step(2)
+      expectReadPrice(c, 8, 128, 0)
     }
   }
 
@@ -78,7 +78,7 @@ class TestBramStore extends FlatSpec with ChiselScalatestTester with Matchers {
     test(new BramStore(ap)).withAnnotations(Seq(VerilatorBackendAnnotation)) { c =>
       initClocks(c)
       writePrice(c, 15, 32)
-      expectReadPrice(c, 15, 32)
+      expectReadPrice(c, 15, 32, 0)
     }
   }
 
@@ -87,9 +87,7 @@ class TestBramStore extends FlatSpec with ChiselScalatestTester with Matchers {
     test(new BramStore(ap)).withAnnotations(Seq(VerilatorBackendAnnotation)) { c =>
       initClocks(c)
       writePrices(c, (0 until 16).toSeq, (0 until 16).toSeq)
-      expectPrices(c, Seq(0,0,0,0))
-      enqIdxs(c, Seq(1,2,3,4))
-      expectPrices(c, Seq(1,2,3,4))
+      expectPrices(c, Seq(1,2,3,4), Seq(1,2,3,4))
     }
   }
 
@@ -97,13 +95,12 @@ class TestBramStore extends FlatSpec with ChiselScalatestTester with Matchers {
     test(new BramStore(ap)).withAnnotations(Seq(VerilatorBackendAnnotation)) { c =>
       initClocks(c)
       writePrices(c, (0 until 16).toSeq, (0 until 16).toSeq)
-      expectPrices(c, Seq(0,0,0,0))
-      enqIdxs(c, Seq(1,2,3,4))
-      expectPrices(c, Seq(1,2,3,4))
-      expectPrices(c, Seq(1,2,3,4))
-      expectPrices(c, Seq(1,2,3,4))
+      expectPrices(c, Seq(0,0,0,0), Seq(0,0,0,0))
+      expectPrices(c, Seq(1,2,3,4), Seq(1,2,3,4))
+      expectPrices(c, Seq(1,2,3,4), Seq(1,2,3,4))
+      expectPrices(c, Seq(1,2,3,4), Seq(1,2,3,4))
       writePrice(c, 4,5)
-      expectPrices(c, Seq(1,2,3,5))
+      expectPrices(c,  Seq(1,2,3,5), Seq(1,2,3,4))
     }
   }
 }

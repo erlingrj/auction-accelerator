@@ -121,8 +121,10 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
   val s1_valid = RegInit(false.B)
 
 
-  val priceReadAddr = WireInit(0.U(ap.agentWidth.W))
+  val priceReadAddr = Wire(UInt(ap.agentWidth.W))
   val priceReadRsp = Wire(UInt(ap.bitWidth.W))
+
+  priceReadAddr := DontCare
 
   io.bramStoreReadAddr := priceReadAddr
   priceReadRsp := io.bramStoreReadData
@@ -167,12 +169,12 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
         s1_agent := io.requestedAgents.bits.agent
 
         // Read out the previously assigned agent
-        bramAssignments.io.read.req.addr := s1_object
+        bramAssignments.io.read.req.addr := searchRes.winner
       }
 
       //  Update
       when(s1_valid) {
-        when(s1_bid > s1_currentPrice) {
+        when(s1_bid > priceReadRsp) {
           // OK. Update everything
 
           // Kick out old guy
@@ -214,8 +216,9 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
     }
     is (sWriteBackAssignments)  {
       io.writeBackStream.start := true.B
+        bramAssignments.io.read.req.addr := regWBCount
         io.writeBackStream.wrData.valid := true.B
-        io.writeBackStream.wrData.bits := bramAssignments.io.read.req.writeData.asTypeOf(new Assignment(ap)).agent
+        io.writeBackStream.wrData.bits := bramAssignments.io.read.rsp.readData.asTypeOf(new Assignment(ap)).agent
         io.writeBackStream.baseAddr := regBaseAddr
         io.writeBackStream.byteCount := regByteCount
         when(io.writeBackStream.wrData.fire()) {
