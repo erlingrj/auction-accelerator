@@ -2,6 +2,7 @@ package auction
 import chisel3._
 import chisel3.util._
 import fpgatidbits.dma.MemReqParams
+import fpgatidbits.ocm.SimpleDualPortBRAM
 import fpgatidbits.synthutils.PrintableParam
 
 class AssignmentEngineParams(
@@ -99,11 +100,22 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
   io.driveDefaults()
 
   // regAssignments holds the mapping object->agent. regAssignment[2] == 3 => obj 2 is owned by agent 3
-  val regAssignments = RegInit(VecInit(Seq.fill(ap.maxProblemSize)(0.U.asTypeOf(new Assignment(ap)))))
+//  val regAssignments = RegInit(VecInit(Seq.fill(ap.maxProblemSize)(0.U.asTypeOf(new Assignment(ap)))))
+
+  val bramAssignments = Module(new SimpleDualPortBRAM(ap.agentWidth, (new Assignment(ap)).getWidth))
+
+  bramAssignments.io.read.req.writeEn := false.B
+  bramAssignments.io.read.req.addr := DontCare
+  bramAssignments.io.read.req.writeData := DontCare
+  bramAssignments.io.write.req.writeEn := false.B
+  bramAssignments.io.write.req.addr := DontCare
+  bramAssignments.io.write.req.writeData := DontCare
+
 
   // Stage 1
   val s1_agent = RegInit(0.U(ap.agentWidth.W))
   val s1_object = RegInit(0.U(ap.agentWidth.W))
+  val s1_prev_ass_agent = RegInit(0.U(ap.agentWidth.W))
   val s1_bid = RegInit(0.U(ap.bitWidth.W))
   val s1_currentPrice = RegInit(0.U(ap.bitWidth.W))
   val s1_valid = RegInit(false.B)
@@ -153,6 +165,9 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
         s1_object := searchRes.winner
         s1_bid := searchRes.bid
         s1_agent := io.requestedAgents.bits.agent
+
+        // Read out the previously assigned agent
+        bramAssignments.io.read.req.addr := s1_object
       }
 
       //  Update
@@ -161,13 +176,17 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
           // OK. Update everything
 
           // Kick out old guy
-          io.unassignedAgents.valid := regAssignments(s1_object).valid
-          io.unassignedAgents.bits.agent := regAssignments(s1_object).agent
+          io.unassignedAgents.valid := bramAssignments.io.read.rsp.readData.asTypeOf(new Assignment(ap)).valid
+          io.unassignedAgents.bits.agent := bramAssignments.io.read.rsp.readData.asTypeOf(new Assignment(ap)).agent
           io.unassignedAgents.bits.nObjects := 0.U
 
           // Assign new
-          regAssignments(s1_object).agent := s1_agent
-          regAssignments(s1_object).valid := true.B
+          val ass = WireInit(0.U.asTypeOf(new Assignment(ap)))
+          ass.agent := s1_agent
+          ass.valid := true.B
+          bramAssignments.io.write.req.writeEn := true.B
+          bramAssignments.io.write.req.addr := s1_object
+          bramAssignments.io.write.req.writeData :=  ass.asUInt
 
           io.bramStoreWriteData := s1_bid
           io.bramStoreWriteAddr := s1_object
@@ -190,23 +209,30 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
       regWBCount := 0.U
       when (io.doWriteBack) {
         regWBState := sWriteBackAssignments
+        bramAssignments.io.read.req.addr := 0.U
       }
     }
     is (sWriteBackAssignments)  {
       io.writeBackStream.start := true.B
-      when(regWBCount === regNCols) {
-        regWBCount := 0.U
-        regWBState := sWriteBackPrices1
-      }.otherwise {
         io.writeBackStream.wrData.valid := true.B
-        io.writeBackStream.wrData.bits := regAssignments(regWBCount).agent
+        io.writeBackStream.wrData.bits := bramAssignments.io.read.req.writeData.asTypeOf(new Assignment(ap)).agent
         io.writeBackStream.baseAddr := regBaseAddr
         io.writeBackStream.byteCount := regByteCount
         when(io.writeBackStream.wrData.fire()) {
-          regWBCount := regWBCount + 1.U
+          bramAssignments.io.write.req.addr := regWBCount
+          bramAssignments.io.write.req.writeEn := true.B
+          bramAssignments.io.write.req.writeData := 0.U
+
+          when (regWBCount < regNCols - 1.U) {
+            regWBCount := regWBCount + 1.U
+            bramAssignments.io.read.req.addr := regWBCount + 1.U
+          }.otherwise {
+            regWBState := sWriteBackPrices1
+            regWBCount := 0.U
+          }
+
         }
       }
-    }
     is (sWriteBackPrices1) {
       io.bramStoreDumpStart := true.B
       io.writeBackStream.start := true.B
@@ -226,7 +252,6 @@ class AssignmentEngine(ap: AssignmentEngineParams) extends Module {
       io.writeBackStream.start := true.B
       when (io.writeBackStream.finished === true.B) {
         regWBState := sIdle
-        regAssignments.map(_ := 0.U.asTypeOf(new Assignment(ap)) )
         io.writeBackDone := true.B
       }
     }
